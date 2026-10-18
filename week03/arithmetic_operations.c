@@ -14,7 +14,7 @@ int main(void) {
     NDArrayHandle D = mul(A, 2);
     
     //Adding an scalar (broadcasting)
-    NDArrayHandle E = add(A, 10);
+    NDArrayHandle E = add(10, A);
 
     printf("A:\n%s\n\n", asstr(A));
     printf("B:\n%s\n\n", asstr(B));
