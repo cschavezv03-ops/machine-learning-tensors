@@ -1,0 +1,998 @@
+    // ============================================================================
+    // 0. VARIANTES ACEPTADAS POR LOS PARÁMETROS MÁS ELABORADOS
+    // ============================================================================
+    
+    // Primer parámetro de la función array():
+    // Escalares nativos de C: 3.14f, 2.71, 42 (generan un escalar 0-D con tipo inferido).
+    // Escalares con tipo explícito (casting): uint8(255), int8(-128), uint16(0x4500), int64(9876543210LL), Bool(1).
+    // Arreglos planos en C (punteros/buffers): float float_data[] = {1.5, 2.0, ...}, double double_data[] = {...}, etc.
+    // Secuencias o listas variádicas tipadas: float32(1.5, 2.0, 3.1, 4.0), int32(1, 2, 3, -4, -5, -6), int8(...), uint8(...), uint16(...), int64(...), Bool(...).
+    
+    // Parámetro shape:
+    // Escalar / tupla: shape(10), shape(-1), shape(2, 3)
+    // Arreglo plano C: int shape_arr[] = {2, 3}
+    // Escalar entero:  10, -1 (dimensiona o infiere como 1-D)
+    // NULL:            mantiene la forma unidimensional (1-D) por defecto
+
+    // Parámetro ctx:
+    // Instancia de estructura MXContext: cpu(0), cpu(1), gpu(0), cpu_pinned(0), get_context(x)
+    // Contexto por defecto: NULL (asigna el contexto del dispositivo por defecto, usualmente cpu(0))
+
+    // Parámetro dtype:
+    // Literales de cadena (strings): "float32", "float64", "float16", "int32", "int64", "int8", "uint8", "bool"
+    // Tipos inferidos/automáticos: NULL (extrae el tipo implícito según el dato o usa float32 por defecto)
+    
+    // Parámetros axis/axes:
+    // Encapsulador axis(): axis(1), axis(1, 0, 2), axis(0, 1), axis(-1)
+    // None           : Aplica la operación por defecto sobre el tensor a todos los ejes aplicables.
+    // axis_scalar    : 0, 1, -1
+    // El parámetro axes en las operaciones de transpose o slice_like utilizan el mismo encapsulador axis().
+    
+    // Parámetro expr... en slicing (1D, 2D, 3D u multidimensional):
+    // Escalar / Índice relativo: 0, 2, 5, -1, "4"
+    // Rango (start, stop): range(1, 5), range(0, -1), range(-3, 10)
+    // Rango con limites omitidos/indefinidos: range(None, None), range(3, None), range(None, 5)
+    // Rango con salto (start, stop, step): range(3, 5, 2), range(1, 8, 2), range(1, None, 2)
+    // Rango completo: ":"
+    // Elipsis: "..."
+    
+// week 01:
+
+    // ============================================================================
+    // 1.1 CREACIÓN Y CONSTRUCTORES DE TENSORES
+    // ============================================================================
+    
+    // NDArrayHandle array(scalar)            -> array(3.14f)                                           -> Shape 0-D (escalar puro con dtype inferido) y CPU por defecto.
+    // NDArrayHandle array(data)              -> array(float_data)                                      -> Shape 1-D automático y CPU por defecto.
+    // NDArrayHandle array(data, shape)       -> array(float32(1, 2, 3), shape(1, 3))                   -> Shape explícito (unitario o multi-dimensión).
+    // NDArrayHandle array(data, shape, ctx)  -> array(int32(2, 4, 6, 8), shape(2, 2), cpu(1))          -> Shape y contexto explícito.
+    
+    // ==========================================
+    // Creadores de tensores con valores constantes
+    // [zeros, ones]
+    // ==========================================
+    // NDArrayHandle zeros()                           -> zeros()                                       -> Escalar 0-D () con valor 0.0 ("float32", cpu(0)).
+    // NDArrayHandle zeros(shape)                      -> zeros(shape(2, 5))                            -> Tensor N-D de ceros.
+    // NDArrayHandle zeros(shape, dtype)               -> zeros(shape(2, 5), "float32")                 -> Tensor N-D con tipo específico.
+    // NDArrayHandle zeros(shape, dtype, ctx)          -> zeros(shape(2, 5), "float32", cpu(1))         -> Tensor N-D con tipo y contexto específicos.
+
+    // ==========================================
+    // Creadores de tensores rellenos con valor personalizado
+    // [full]
+    // ==========================================
+    // NDArrayHandle full(val)                         -> full(3.14)                                    -> Escalar 0-D () inicializado en 'val'.
+    // NDArrayHandle full(val, shape)                  -> full(3.14, shape(2, 5))                       -> Tensor N-D inicializado en 'val'.
+    // NDArrayHandle full(val, shape, dtype)           -> full(3.14, shape(2, 5), "float32")            -> Tensor N-D con tipo específico.
+    // NDArrayHandle full(val, shape, dtype, ctx)      -> full(3.14, shape(2, 5), "float32", cpu(1))    -> Tensor N-D con tipo y contexto específicos.
+    
+    // ==========================================
+    // Creadores de tensores constantes basados en la estructura de otro tensor
+    // [zeros_like, ones_like]
+    // ==========================================
+    // NDArrayHandle zeros_like(a)                     -> zeros_like(x)                                 -> Ceros con la misma forma, tipo y contexto que 'x'.
+    // NDArrayHandle zeros_like(a, dtype)              -> zeros_like(x, "float32")                      -> Reemplaza el tipo de dato original por dtype.
+    // NDArrayHandle zeros_like(a, dtype, ctx)         -> zeros_like(x, "float32", cpu(1))              -> Reemplaza tipo y transfiere el tensor a ctx.
+
+    // ==========================================
+    // Creadores de tensores con valor personalizado basados en la estructura de otro tensor
+    // [full_like]
+    // ==========================================
+    // NDArrayHandle full_like(a, val)                 -> full_like(x, 3.14)                            -> Tensor con valor 'val', misma forma, tipo y contexto que 'x'.
+    // NDArrayHandle full_like(a, val, dtype)          -> full_like(x, 3.14, "float32")                 -> Reemplaza el tipo de dato original por dtype.
+    // NDArrayHandle full_like(a, val, dtype, ctx)     -> full_like(x, 3.14, "float32", cpu(1))         -> Reemplaza tipo y transfiere el tensor a ctx.
+     
+    // NDArrayHandle arange(stop);                                                       -> arange(5)                                            -> Generación de una secuencia numérica con un límite superior predeterminado.
+    // NDArrayHandle arange(start, stop);                                                -> arange(2, 8)                                         -> Generación de una secuencia especificando un valor inicial y un límite superior.
+    // NDArrayHandle arange(start, stop, step);                                          -> arange(0, 2, 0.5)                                    -> Generación de una secuencia con intervalo o paso personalizado.
+    // NDArrayHandle arange(start, stop, step, shape);                                   -> arange(12, 0, -2, shape(2, 3))                       -> Generación indicando inicio, fin, paso y forma del arreglo.
+    // NDArrayHandle arange(start, stop, step, shape, dtype, ctx);                       -> arange(-5, 5, 2.5, shape(2, 2), "float64", cpu(1))   -> Generación completa con todos los parámetros de rango, paso, forma, tipo y contexto.
+
+    // NDArrayHandle arange(stop, shape);                                                -> arange(10, shape(2, 5))                              -> Generación de una secuencia indicando el límite superior y la forma del tensor resultante.
+    // NDArrayHandle arange(stop, shape, dtype);                                         -> arange(10, shape(-1), "int32")                       -> Generación especificando límite, forma y tipo de datos del tensor.
+    // NDArrayHandle arange(stop, shape, dtype, ctx);                                    -> arange(10, shape(2, 5), "int32", cpu(1))             -> Generación indicando límite, forma, tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle arange(start, stop, shape);                                         -> arange(2, 8, shape(2, 3))                            -> Generación de una secuencia con inicio, límite y forma específica.
+    // NDArrayHandle arange(start, stop, shape, dtype);                                  -> arange(10, 20, shape(5, -1), "int8")                  -> Generación especificando inicio, fin, forma y tipo de datos.
+    // NDArrayHandle arange(start, stop, shape, dtype, ctx);                             -> arange(10, 20, shape(5, -1), "int8", cpu(1))          -> Generación especificando inicio, fin, forma, tipo y contexto.
+
+    // NDArrayHandle arange_like(data);                                                  -> arange_like(x)                                       -> Generación de una secuencia numérica basada en la forma de un arreglo de referencia sin parámetros opcionales.
+    // NDArrayHandle arange_like(data, start);                                           -> arange_like(x, 10)                                   -> Generación basada en un arreglo de referencia especificando el valor inicial.
+    // NDArrayHandle arange_like(data, start, step);                                     -> arange_like(x, 0, 0.1)                               -> Generación basada en un arreglo de referencia indicando inicio y paso.
+    // NDArrayHandle arange_like(data, start, step, axis_scalar);                        -> arange_like(x, 0, 1, -1)                             -> Generación basada en un arreglo de referencia especificando inicio, paso y eje o escalar.
+    // NDArrayHandle arange_like(data, start, step, axis_scalar, ctx);                   -> arange_like(x, 0, 2, 1, cpu(1))                      -> Generación basada en un arreglo de referencia con todos los parámetros opcionales de configuración y contexto.
+
+    // NDArrayHandle linspace(stop)                                              -> linspace(10)                                         -> Secuencia de puntos hasta stop (con 50 puntos por defecto).
+    // NDArrayHandle linspace(start, stop)                                       -> linspace(0, 10)                                      -> Secuencia de start a stop.
+    // NDArrayHandle linspace(start, stop, num)                                  -> linspace(0, 10, 100)                                 -> Secuencia de start a stop con el número exacto de puntos.
+    // NDArrayHandle linspace(start, stop, num, endpoint)                        -> linspace(0, 10, 100, 1)                              -> Todo lo anterior especificando si se incluye o no el punto máximo.
+    // NDArrayHandle linspace(start, stop, num, endpoint, dtype)                 -> linspace(0, 10, 100, 0, "int64")                     -> Todo lo anterior con el tipo de datos.
+    // NDArrayHandle linspace(start, stop, num, endpoint, dtype, ctx)            -> linspace(0, 10, 100, 0, "int64", cpu(1))             -> Todo lo anterior con el contexto.
+    
+    // NDArrayHandle logspace(stop)                                              -> logspace(3)                                          -> Secuencia logarítmica de puntos hasta stop (con 50 puntos y base 10 por defecto).
+    // NDArrayHandle logspace(start, stop)                                       -> logspace(1, 3)                                       -> Secuencia logarítmica de start a stop.
+    // NDArrayHandle logspace(start, stop, num)                                  -> logspace(1, 3, 100)                                  -> Secuencia logarítmica de start a stop con el número exacto de puntos.
+    // NDArrayHandle logspace(start, stop, num, endpoint)                        -> logspace(1, 3, 100, 1)                               -> Todo lo anterior especificando si se incluye o no el punto máximo.
+    // NDArrayHandle logspace(start, stop, num, endpoint, base)                  -> logspace(1, 3, 100, 0, 2.0)                          -> Todo lo anterior especificando la base logarítmica.
+    // NDArrayHandle logspace(start, stop, num, endpoint, base, dtype)           -> logspace(1, 3, 100, 0, 2.0, "float64")               -> Todo lo anterior con el tipo de datos.
+    // NDArrayHandle logspace(start, stop, num, endpoint, base, dtype, ctx)      -> logspace(1, 3, 100, 0, 2.0, "float64", cpu(1))       -> Todo lo anterior con el contexto.
+    
+    // NDArrayHandle meshgrid(x, y);                                             -> meshgrid(ax_x, ax_y)                                 -> Generación de malla de coordenadas 2D con la convención matricial 'ij' implícita.
+    // NDArrayHandle meshgrid(x, y, indexing);                                   -> meshgrid(ax_x, ax_y, "xy")                           -> Generación de malla de coordenadas 2D con la convención cartesiana 'xy' explícita.
+    // NDArrayHandle meshgrid(x, y, z);                                          -> meshgrid(x, y, z)                                    -> Generación de cuadrícula de coordenadas N-dimensional para N vectores de entrada.
+
+    // ==========================================
+    // 1.2 Generación de matrices identidad y ventanas
+    // ==========================================
+
+    // NDArrayHandle eye(N);                                                             -> eye(4)                                               -> Matriz identidad cuadrada N x N con tipo de dato y contexto predeterminados.
+    // NDArrayHandle eye(N, M);                                                          -> eye(4, 5)                                            -> Matriz rectangular N x M con diagonal principal en 1.
+    // NDArrayHandle eye(N, M, k);                                                       -> eye(4, 5, 1)                                         -> Matriz rectangular especificando el índice de la diagonal k.
+    // NDArrayHandle eye(N, M, k, dtype);                                                -> eye(4, 5, -1, "int32")                               -> Matriz rectangular con desplazamiento diagonal y tipo de dato explícito.
+    // NDArrayHandle eye(N, M, k, dtype, ctx);                                           -> eye(4, 5, 2, "int32", cpu(1))                        -> Matriz rectangular totalmente parametrizada indicando el contexto de ejecución.
+
+    // NDArrayHandle identity(N);                                                        -> identity(4)                                          -> Matriz de tamaño N x N basada en entero con configuración predeterminada.
+    // NDArrayHandle identity(shape);                                                    -> identity(shape(4))                                   -> Matriz o tensor identidad a partir de una tupla o estructura de forma.
+    // NDArrayHandle identity(shape, dtype);                                             -> identity(shape(3, 4), "float64")                     -> Matriz identidad indicando la forma multidimensional y tipo de dato.
+    // NDArrayHandle identity(shape, dtype, ctx);                                        -> identity(shape(2, 4), "int64", cpu(1))               -> Matriz identidad indicando forma, tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle hanning(M);                                                         -> hanning(5)                                           -> Ventana Hanning de M puntos con tipo de dato y contexto predeterminados.
+    // NDArrayHandle hanning(M, dtype);                                                  -> hanning(5, "float64")                                -> Ventana Hanning especificando el tipo de dato de salida.
+    // NDArrayHandle hanning(M, dtype, ctx);                                             -> hanning(5, "float64", cpu(1))                        -> Ventana Hanning especificando tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle hamming(M);                                                         -> hamming(5)                                           -> Ventana Hamming de M puntos con tipo de dato y contexto predeterminados.
+    // NDArrayHandle hamming(M, dtype);                                                  -> hamming(5, "float32")                                -> Ventana Hamming especificando el tipo de dato de salida.
+    // NDArrayHandle hamming(M, dtype, ctx);                                             -> hamming(5, "float32", cpu(1))                        -> Ventana Hamming especificando tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle blackman(M);                                                        -> blackman(5)                                          -> Ventana Blackman de M puntos con tipo de dato y contexto predeterminados.
+    // NDArrayHandle blackman(M, dtype);                                                 -> blackman(5, "float64")                               -> Ventana Blackman especificando el tipo de dato de salida.
+    // NDArrayHandle blackman(M, dtype, ctx);                                            -> blackman(5, "float64", cpu(1))                       -> Ventana Blackman especificando tipo de dato y contexto de ejecución.
+
+    // ==========================================
+    // 1.3 Conversiones y consultas de propiedades
+    // ==========================================
+
+    // const char* asstr(handle)   -> asstr(x)                                -> Convierte la información y datos del tensor en string imprimible.
+    // void* asarray(handle)       -> float *f32_arr      = asarray(x);       -> Obtiene un puntero float hacia el bloque de memoria de datos del tensor.
+    //                             -> double *f64_arr     = asarray(x);       -> Obtiene un puntero double hacia el bloque de memoria de datos del tensor.
+    //                             -> int32_t *i32_arr    = asarray(x);       -> Obtiene un puntero int32_t hacia el bloque de memoria de datos del tensor.
+    //                             -> int64_t *i64_arr    = asarray(x);       -> Obtiene un puntero int64_t hacia el bloque de memoria de datos del tensor.
+    //                             -> int8_t *i8_arr      = asarray(x);       -> Obtiene un puntero int8_t hacia el bloque de memoria de datos del tensor.
+    //                             -> uint8_t *u8_arr     = asarray(x);       -> Obtiene un puntero uint8_t hacia el bloque de memoria de datos del tensor.
+    //                             -> uint16_t *f16_arr   = asarray(x);       -> Obtiene un puntero uint16_t hacia el bloque de memoria de datos del tensor.
+    //                             -> bool *bool_arr      = asarray(x);       -> Obtiene un puntero bool hacia el bloque de memoria de datos del tensor.
+    // double asscalar(handle)     -> float f32_scalar    = asscalar(x);      -> Extrae un float desde un tensor de un solo elemento.
+    //                             -> double f64_scalar   = asscalar(x);      -> Extrae un double desde un tensor de un solo elemento.
+    //                             -> int32_t i32_scalar  = asscalar(x);      -> Extrae un int32_t desde un tensor de un solo elemento.
+    //                             -> int64_t i64_scalar  = asscalar(x);      -> Extrae un int64_t desde un tensor de un solo elemento.
+    //                             -> int8_t i8_scalar    = asscalar(x);      -> Extrae un int8_t desde un tensor de un solo elemento.
+    //                             -> uint8_t u8_scalar   = asscalar(x);      -> Extrae un uint8_t desde un tensor de un solo elemento.
+    //                             -> uint16_t f16_scalar = asscalar(x);      -> Extrae un uint16_t desde un tensor de un solo elemento.
+    //                             -> bool bool_scalar    = asscalar(x);      -> Extrae un bool_scalar desde un tensor de un solo elemento.
+
+    // const char* shape_str(handle)        -> shape_str(x)                   -> Retorna el shap del tensor como string format "(d1, d2, ...)".
+    // int ndim(handle)                     -> ndim(x)                        -> Obtiene el número de dimensiones.
+    // int len(handle)                      -> len(x)                         -> Número de elementos en la primera dimensión (filas o batch).
+    // int size(handle)                     -> size(x)                        -> Número total acumulado de elementos en el tensor.
+    // const char* dtype(handle)            -> dtype(x)                       -> Tipo de dato del tensor como string ("float32", "int32", etc.).
+    // const char* handle(handle)           -> handle(x)                      -> Retorna la dirección de memoria o identificador del puntero en string.
+
+    // void unpack_shape(handle, ...)       -> unpack_shape(x, rows, cols)    -> Desempaqueta las dimensiones del tensor en variables locales int.
+    // int shape_dim(handle, dim)           -> shape_dim(x, 0)                -> Obtiene el tamaño de una dimensión específica indexada por dim.
+    // const int* get_shape(handle)         -> get_shape(x)                   -> Retorna puntero al arreglo de dimensiones (const int*).
+
+    // NDArrayHandle shape_array(a)         -> shape_array(t_mat)             -> Retorna la forma (shape) del tensor como un tensor 1D de enteros.
+    // NDArrayHandle size_array(a)          -> size_array(t_mat)              -> Retorna el número total de elementos del tensor como un escalar contenido en un tensor.
+    
+    // ==========================================
+    // 1.4. Conversión de tipo, inspeción/cambio de dispositivo y copia de tensores
+    // ==========================================
+    
+    // Conversión de tipo y almacenamiento
+    // NDArrayHandle astype(x, dtype)              -> astype(x, "float32")                   -> Garantiza el dtype solicitado creando siempre un nuevo tensor independiente (evita aliasing).
+    // NDArrayHandle totype(x, dtype)              -> totype(x, "float32")                   -> Cambia el tipo de dato reutilizando el handle si ya coincide, o crea uno nuevo si difiere (optimización de memoria).
+    // NDArrayHandle tostype(x, dtype)             -> tostype(x, "csr")                      -> Cambia el formato/tipo de almacenamiento (storage type) del tensor de "denso" a "csr" o "row_sparse".
+    
+    // Instanciación de contexto:
+    // const char* cpu(id)                         -> cpu(0)                                 -> Obtiene el string correspondiente al contexto de CPU y su identificador.
+    // const char* gpu(id)                         -> gpu(0)                                 -> Obtiene el string correspondiente al contexto de GPU y su identificador.
+    // const char* cpu_pinned(id)                  -> cpu_pinned(0)                          -> Obtiene el string correspondiente al contexto de CPU pinned y su identificador.
+    
+    // Inspección de contexto
+    // const char* get_context(handle)             -> get_context(x)                         -> Extrae el contexto del tensor de entrada.
+    // bool context_equal(a, b)                    -> context_equal(get_context(x), cpu(0))  -> Evalúa si dos contextos son idénticos (devuelve bool).
+
+    // Copia y contexto
+    // NDArrayHandle copy(tensor)                  -> copy(x)                                -> Copia de tensor en una nueva dirección de memoria (copia profunda).
+    // NDArrayHandle nd_copy(tensor)               -> nd_copy(x)                             -> Copia de tensor independiente.
+    // int copyto(data, out)                       -> copyto(x, dest)                        -> Copia datos al tensor de salida `dest` volcando el contenido in-place (el handle no cambia).
+    // NDArrayHandle as_in_context(x, target_ctx)  -> as_in_context(x, cpu(1))               -> Asegura el tensor en el contexto indicado (evita copia si ya está en él).
+
+    // =========================================================================
+    // 1.5. Listas de tensores y manipulación de listas: declaración, serialización, desempaquetado y liberación
+    // =========================================================================
+
+    // NDArrayList declare(n);                                             -> declare(3)                                           -> Reserva un contenedor NDArrayList con n posiciones inicializadas en NULL.
+    // NDArrayList tolist(...);                                            -> tolist(copy(a), &list_ab)                            -> Serialización heterogénea y aplanado variádico de tensores y listas en un NDArrayList.
+    // NDArrayHandle idx(list, i);                                         -> idx(tensors, 0)                                      -> Acceso directo L-value al elemento en el índice i de un NDArrayList.
+    // void free_tensors(...);                                             -> free_tensors(x, y, list_mix)                         -> Liberación variádica y polimórfica de handles (NDArrayHandle) y listas (NDArrayList).
+    // void unpack_tensors(src, ...);                                      -> unpack_tensors(list, x, y, z)                        -> Desempaquetado secuencial de los elementos de un NDArrayList en variables individuales. Ojo que el argumento src es automáticamente liberado de la memoria, por lo tanto liberar src posteriormente resultará Double free o Segmentation Fault: 11.
+    
+// week 02:
+
+    // ==========================================
+    // 2.1. Modificación estructural de tensores: eliminación, inserción, reshape, reducción y expansión de dimensionalidad
+    // ==========================================
+    
+    // NDArrayHandle delete(arr, int_ind);                                       -> delete(arr, 2)                                         -> Eliminación de un elemento en un índice entero aplanado.
+    // NDArrayHandle delete(arr, int_ind, axis_scalar);                          -> delete(arr2d, 1, 0)                                    -> Eliminación de elementos a lo largo de un eje específico.
+
+    // NDArrayHandle insert_scalar(arr, int_ind, val);                           -> insert_scalar(arr, 0, 9.9)                             -> Inserción de un valor escalar antes de un índice entero en un tensor aplanado.
+    // NDArrayHandle insert_scalar(arr, int_ind, val, axis_scalar);              -> insert_scalar(arr2d, 1, 99.0, 0)                       -> Inserción de un valor escalar antes de un índice entero especificando el eje.
+
+    // NDArrayHandle insert_tensor(arr, values, obj);                            -> insert_tensor(arr, values, obj)                        -> Inserción de un tensor de valores en las posiciones indicadas por un arreglo de índices.
+    // NDArrayHandle insert_tensor(arr, values, obj, axis_scalar);               -> insert_tensor(arr2d, val_row, obj, 0)                  -> Inserción de un tensor de valores en posiciones indexadas a lo largo de un eje específico.
+
+    // NDArrayHandle insert_slice(arr, values, start, stop, step);               -> insert_slice(arr, values, 1, 5, 1)                     -> Inserción de un segmento de valores utilizando los parámetros de un slice en un tensor aplanado.
+    // NDArrayHandle insert_slice(arr, values, start, stop, step, axis);         -> insert_slice(arr2d, values, 0, 1, 1, 1)                -> Inserción de un segmento de valores mediante slice especificando un eje objetivo.
+
+    // NDArrayHandle reshape(data)                    -> reshape(x)                                    -> Aplatana el tensor a 1D (sin parámetro shape)
+    // NDArrayHandle reshape(data, shape)             -> reshape(x, shape(4, 3))                       -> Redimensiona usando macro shape(...)
+    // NDArrayHandle reshape(data, shape)             -> reshape(x, shape(-1, 2))                      -> Infiere una dimensión automáticamente con -1 en macro shape
+    // NDArrayHandle reshape(data, shape)             -> reshape(x, shape_arr)                         -> Redimensiona usando un arreglo C (ej. int shape_arr[] = {2, 2, 3})
+    // NDArrayHandle reshape(data, shape)             -> reshape(x, -1)                                -> Aplatana/infiere a 1D usando el escalar -1
+
+    // NDArrayHandle reshape_like(lhs, rhs)           -> reshape_like(x, y)                            -> Adapta la forma global de 'lhs' a la de 'rhs'
+    // NDArrayHandle reshape_like(lhs, rhs, ranges)   -> reshape_like(x, y, 0, 1, 0, 2)                -> Adapta sub-bloques de dimensiones entre 'lhs' y 'rhs'
+    
+    // NDArrayHandle flatten(a)                       -> flatten(t_mat)                                -> Aplanea el tensor a 2D manteniendo el eje del lote (batch) intacto.
+    
+    // NDArrayHandle expand_dims
+    // NDArrayHandle expand_dims(data, axis)          -> expand_dims(x, 1)                             -> Inserta una dimensión de tamaño 1 en el eje 1
+    // NDArrayHandle expand_dims(data, axis)          -> expand_dims(x, axis(0, 1))                    -> Inserta una dimensión de tamaño 1 en los ejes 0 y 1
+    
+    // NDArrayHandle squeeze
+    // NDArrayHandle squeeze(data)                    -> squeeze(x)                                    -> Elimina TODAS las dimensiones unitarias (ejes con dim 1)
+    // NDArrayHandle squeeze(data, axis)              -> squeeze(x, axis(1))                           -> Elimina dimensiones unitarias solo en los ejes especificados
+    // NDArrayHandle squeeze(data, axis)              -> squeeze(x, None)                              -> Comportamiento por defecto equivalente a squeeze(x)
+
+    // ==========================================
+    // 2.2. Recorte y manipulación de trozos de tensores
+    // ==========================================
+
+    // Extracción de elementos arbitrarios
+    // NDArrayHandle take(a, indices);                       -> take(x, idx_1d)                         -> Extracción en eje 0 con modo 'clip' por defecto.
+    // NDArrayHandle take(a, indices, axis_scalar);          -> take(x, idx_neg, 1)                     -> Extracción especificando el eje de origen.
+    // NDArrayHandle take(a, indices, axis_scalar, mode);    -> take(x, idx_neg, 1, "wrap")             -> Extracción con eje y modo de límites ('clip', 'wrap', 'raise').    
+
+    // NDArrayHandle slice_like
+    // NDArrayHandle slice_like(data, shape_like)        -> slice_like(x, y)                            -> Recorta 'x' usando la forma de 'y' en todos los ejes
+    // NDArrayHandle slice_like(data, shape_like, axes)  -> slice_like(x, y, axis(0, 1))                -> Recorta 'x' adaptando solo los ejes especificados
+    // NDArrayHandle slice_like(data, shape_like, axes)  -> slice_like(x, y, axis(-1))                  -> Soporta indexación negativa para los ejes
+
+    // NDArrayHandle slice(data, expr...)                -> slice(x, 0)                                   -> Indexación escalar en 1D
+    // NDArrayHandle slice(data, expr...)                -> slice(x, ":")                                 -> Extrae todo el rango en esa dimensión
+    // NDArrayHandle slice(data, expr...)                -> slice(x, range(1, 5))                         -> Rango con inicio y fin explícito [1, 5)
+    // NDArrayHandle slice(data, expr...)                -> slice(x, range(3, None))                      -> Rango desde índice hasta el final
+    // NDArrayHandle slice(data, expr...)                -> slice(x, range(None, 5))                      -> Rango desde el inicio hasta el índice
+    // NDArrayHandle slice(data, expr...)                -> slice(x, range(3, 5, 2))                      -> Rango con inicio, fin y paso (step)
+    // NDArrayHandle slice(data, expr...)                -> slice(x, "...", 0)                            -> Uso de elipsis para abarcar dimensiones previas
+    // NDArrayHandle slice(data, expr...)                -> slice(x, range(1, 3), ":", range(0, 5, 2))    -> Extracción multidimensional combinada
+
+    // NDArrayHandle slice_assign(dst, val, expr...)     -> slice_assign(x, y, ":", range(0, 2))         -> Reemplaza región con un tensor 'y'
+    // NDArrayHandle slice_assign(dst, val, expr...)     -> slice_assign(x, 77, ":", range(1, None, 2))  -> Asigna un escalar con saltos (step)
+    // NDArrayHandle slice_assign(dst, val, expr...)     -> slice_assign(x, 88, 4)                       -> Asigna un escalar en un índice fijo
+    
+    // NDArrayHandle crop_assign(dst, val, expr...)      -> crop_assign(x, y, ":", range(0, 2))          -> Asignación optimizada en memoria con tensor 'y'
+    // NDArrayHandle crop_assign(dst, val, expr...)      -> crop_assign(x, 99, -1)                       -> Asignación optimizada con escalar usando índices negativos
+
+    // NDArrayHandle slice_axis(data, axis_scalar, begin, end)          -> slice_axis(x, 0, 3, 5)                      -> Corta en el eje dado entre 'begin' y 'end'
+    // NDArrayHandle slice_axis(data, axis_scalar, begin, end)          -> slice_axis(x, 0, 3, None)                   -> Corta desde 'begin' hasta el final del eje
+    // NDArrayHandle slice_axis(data, axis_scalar, begin, end)          -> slice_axis(x, 0, None, 5)                   -> Corta desde el inicio del eje hasta 'end'
+    // NDArrayHandle slice_axis(data, axis_scalar, begin, end)          -> slice_axis(x, 0, None, None)                -> Toma todo el rango del eje indicado
+    // NDArrayHandle slice_axis(data, axis_scalar, begin, end)          -> slice_axis(x, 1, -3, -1)                    -> Soporta índices negativos desde el final
+
+    // =========================================================================
+    // 2.3. Operaciones de múltiples tensores como entrada
+    // =========================================================================
+
+    // NDArrayHandle add_n(a, b);                                                        -> add_n(A, B)                                         -> Suma elemento a elemento de dos tensores de la misma forma.
+    // NDArrayHandle add_n(a, b, c);                                                     -> add_n(A, B, C)                                      -> Suma n-aria elemental variádica de tres o más tensores.
+
+    // NDArrayHandle concat(dim, a, b);                                                  -> concat(0, A, B)                                     -> Concatenación de dos tensores a lo largo del eje especificado.
+    // NDArrayHandle concat(dim, a, b, c);                                               -> concat(1, A, B, C)                                  -> Concatenación variádica de tres o más tensores en la dimensión dada.
+
+    // NDArrayHandle stack(axis_scalar, a, b);                                           -> stack(0, A, B)                                      -> Apilamiento de dos tensores creando un nuevo eje en la posición indicada.
+    // NDArrayHandle stack(axis_scalar, a, b, c);                                        -> stack(1, A, B, C)                                   -> Apilamiento variádico de N tensores introduciendo un nuevo eje.
+
+    // NDArrayHandle dstack(a);                                                          -> dstack(a)                                           -> Apilamiento a lo largo del tercer eje (profundidad/eje 2) para un solo tensor.
+    // NDArrayHandle dstack(a, b);                                                       -> dstack(a, b)                                        -> Apilamiento en la dimensión de profundidad para dos tensores.
+    // NDArrayHandle dstack(a, b, c);                                                    -> dstack(m1, m2, m3)                                  -> Apilamiento variádico a lo largo del tercer eje para tres o más tensores.
+
+    // NDArrayHandle hstack(a);                                                          -> hstack(a)                                           -> Apilamiento horizontal (eje 1 para >=2D o eje 0 para 1D) de un tensor.
+    // NDArrayHandle hstack(a, b);                                                       -> hstack(a, b)                                        -> Apilamiento horizontal de dos tensores a lo largo del segundo eje.
+    // NDArrayHandle hstack(a, b, c);                                                    -> hstack(m1, m2, m3)                                  -> Apilamiento horizontal variádico de múltiples matrices o tensores.
+
+    // NDArrayHandle column_stack(a);                                                    -> column_stack(a)                                     -> Apilamiento por columnas transformando vectores 1D en matrices columna 2D.
+    // NDArrayHandle column_stack(a, b);                                                 -> column_stack(a, b)                                  -> Apilamiento en columnas de dos vectores 1D o matrices 2D.
+    // NDArrayHandle column_stack(a, b, c);                                              -> column_stack(a, b, c)                               -> Apilamiento por columnas variádico para tres o más tensores.
+
+    // NDArrayHandle vstack(a);                                                          -> vstack(a)                                           -> Apilamiento vertical (eje 0) manteniendo o preparando la estructura 2D.
+    // NDArrayHandle vstack(a, b);                                                       -> vstack(a, b)                                        -> Apilamiento vertical de dos tensores (o escalares 0D convertidos a filas).
+    // NDArrayHandle vstack(a, b, c);                                                    -> vstack(m1, m2, m3)                                  -> Apilamiento vertical variádico de múltiples tensores en el primer eje.
+
+    // NDArrayHandle einsum(subscripts, optimize, a, b);                                 -> einsum(NULL, 0, A_einsum, B_einsum)                 -> Contracción de Einstein de dos tensores con inferencia automática de subíndices.
+    // NDArrayHandle einsum(subscripts, optimize, a, b);                                 -> einsum("ij,jk->ik", 0, A_einsum, B_einsum)          -> Contracción de Einstein de dos tensores con subíndices explícitos de multiplicación.
+    // NDArrayHandle einsum(subscripts, optimize, a, b, c);                              -> einsum("i,j,k->ijk", 1, a, b, c)                    -> Operación de producto exterior u operacional de Einstein para tres o más tensores.
+    
+    // ==================================================================================================================================================
+    // 2.4. MULTISALIDAS Y EXPANSIÓN DIMENSIONAL (unique / svd / eig / eigh / split / hsplit / dsplit / atleast_1d / atleast_2d / atleast_3d)
+    // ==================================================================================================================================================
+    
+    // NDArrayList unique(data);                                                     -> unique(x)                                            -> Obtención de elementos únicos aplanados.
+    // NDArrayList unique(data, return_index);                                       -> unique(x, 1)                                         -> Elementos únicos e índices de sus primeras apariciones.
+    // NDArrayList unique(data, return_index, return_inverse);                       -> unique(x, 1, 1)                                      -> Elementos únicos, índices de aparición y mapa para reconstruir la entrada.
+    // NDArrayList unique(data, return_index, return_inverse, return_counts);        -> unique(x, 1, 1, 1)                                   -> Elementos únicos, índices, mapa de reconstrucción y conteo de frecuencias.
+    // NDArrayList unique(data, return_index, return_inverse, return_counts, axis);  -> unique(x, 1, 1, 1, 0)                                -> Elementos únicos con todos los tensores auxiliares calculados sobre el eje 0.
+    // NDArrayList unique(data, return_index, return_inverse, return_counts, axis);  -> unique(x, 0, 0, 1, 1)                                -> Elementos únicos y conteo de frecuencias evaluados a lo largo del eje 1.
+
+    // NDArrayList svd(data);                                                        -> svd(mat)                                             -> Descomposición en valores singulares (retorna U, S, V^T).
+
+    // NDArrayList eig(data);                                                        -> eig(mat)                                             -> Cálculo de autovalores y autovectores para matrices generales.
+
+    // NDArrayList eigh(data);                                                       -> eigh(mat)                                            -> Autovalores y autovectores usando la parte inferior ("L") por defecto.
+    // NDArrayList eigh(data, uplo);                                                 -> eigh(mat, "U")                                       -> Autovalores y autovectores especificando la parte triangular ("U" o "L").
+
+    // NDArrayList split(data, sections);                                            -> split(x, 2)                                          -> División equitativa en 2 secciones sobre el eje por defecto (axis=1).
+    // NDArrayList split(data, sections, axis_scalar);                               -> split(x, 2, 0)                                       -> División equitativa en 2 secciones sobre el eje 0.
+    // NDArrayList split(data, sections, axis_scalar, squeeze_axis);                 -> split(x, 2, 0, 1)                                    -> División en 2 secciones sobre el eje 0 reduciendo ejes unitarios (squeeze).
+
+    // NDArrayList hsplit(data, sections);                                           -> hsplit(x, 2)                                         -> División horizontal en 2 secciones sobre el eje por defecto (axis=1).
+    // NDArrayList hsplit(data, sections, axis_scalar);                              -> hsplit(x, 2, 1)                                      -> División horizontal en 2 secciones especificando explícitamente el eje 1.
+    // NDArrayList hsplit(data, sections, axis_scalar, squeeze_axis);                -> hsplit(x_sq_h, 2, 1, 1)                              -> División horizontal en 2 secciones colapsando la dimensión dividida.
+
+    // NDArrayList dsplit(data, sections);                                           -> dsplit(x_3d, 2)                                      -> División en profundidad 3D en 2 secciones sobre el eje por defecto (axis=2).
+    // NDArrayList dsplit(data, sections, axis_scalar);                              -> dsplit(x_3d, 2, 2)                                   -> División en profundidad 3D en 2 secciones especificando explícitamente el eje 2.
+    // NDArrayList dsplit(data, sections, axis_scalar, squeeze_axis);                -> dsplit(x_3d_sq, 2, 2, 1)                             -> División en profundidad 3D en 2 secciones colapsando la tercera dimensión.
+
+    // NDArrayList atleast_1d(a);                                                    -> atleast_1d(a)                                        -> Garantiza que la entrada tenga al menos 1 dimensión (escalares 0D se convierten en 1D).
+    // NDArrayList atleast_1d(a, b);                                                 -> atleast_1d(a, b)                                     -> Convierte 2 entradas a tensores de al menos 1D.
+    // NDArrayList atleast_1d(a, b, c);                                              -> atleast_1d(a, b, c)                                  -> Convierte 3 entradas a tensores de al menos 1D.
+
+    // NDArrayList atleast_2d(a);                                                    -> atleast_2d(a)                                        -> Garantiza que la entrada tenga al menos 2 dimensiones (vectores 1D se convierten en 2D).
+    // NDArrayList atleast_2d(a, b);                                                 -> atleast_2d(a, b)                                     -> Convierte 2 entradas a tensores de al menos 2D.
+    // NDArrayList atleast_2d(a, b, c);                                              -> atleast_2d(a, b, c)                                  -> Convierte 3 entradas a tensores de al menos 2D.
+
+    // NDArrayList atleast_3d(a);                                                    -> atleast_3d(a)                                        -> Garantiza que la entrada tenga al menos 3 dimensiones (expande dimensiones faltantes).
+    // NDArrayList atleast_3d(a, b);                                                 -> atleast_3d(a, b)                                     -> Convierte 2 entradas a tensores de al menos 3D.
+    // NDArrayList atleast_3d(a, b, c);                                              -> atleast_3d(a, b, c)                                  -> Convierte 3 entradas a tensores de al menos 3D.
+
+    // ==========================================
+    // 2.5. Álgebra básica y Cálculo diferencial
+    // ==========================================
+    
+    // Algebraicas:
+    // NDArrayHandle sign(a), sign_backward(grad, a)              -> sign(x), sign_backward(grad, x)              -> Función signo y su correspondiente función de gradiente.
+    // NDArrayHandle abs(a), abs_backward(grad, a)                -> abs(x), abs_backward(grad, x)                -> Valor absoluto y su correspondiente función de gradiente.
+    // NDArrayHandle square(a), square_backward(grad, a)          -> square(x), square_backward(grad, x)          -> Potencia cuadrada y su correspondiente función de gradiente.
+    // NDArrayHandle sqrt(a), sqrt_backward(grad, a)              -> sqrt(x), sqrt_backward(grad, x)              -> Raíz cuadrada y su correspondiente función de gradiente.
+    // NDArrayHandle cbrt(a), cbrt_backward(grad, a)              -> cbrt(x), cbrt_backward(grad, x)              -> Raíz cúbica y su correspondiente función de gradiente.
+    // NDArrayHandle rsqrt(a), rsqrt_backward(grad, a)            -> rsqrt(x), rsqrt_backward(grad, x)            -> Recíproco de la raíz cuadrada y su correspondiente función de gradiente.
+    // NDArrayHandle rcbrt(a), rcbrt_backward(grad, a)            -> rcbrt(x), rcbrt_backward(grad, x)            -> Recíproco de la raíz cúbica y su correspondiente función de gradiente.
+    // NDArrayHandle reciprocal(a), reciprocal_backward(grad, a)  -> reciprocal(x), reciprocal_backward(grad, x)  -> Inverso multiplicativo y su correspondiente función de gradiente.
+
+    // Logarítmicas y exponenciales:
+    // NDArrayHandle log(a), log_backward(grad, a)                -> log(x), log_backward(grad, x)                -> Logaritmo natural (base e) y su correspondiente función de gradiente.
+    // NDArrayHandle log10(a), log10_backward(grad, a)            -> log10(x), log10_backward(grad, x)            -> Logaritmo en base 10 y su correspondiente función de gradiente.
+    // NDArrayHandle log2(a), log2_backward(grad, a)              -> log2(x), log2_backward(grad, x)              -> Logaritmo en base 2 y su correspondiente función de gradiente.
+    // NDArrayHandle log1p(a), log1p_backward(grad, a)            -> log1p(x), log1p_backward(grad, x)            -> Logaritmo natural de (1 + x) y su correspondiente función de gradiente.
+    // NDArrayHandle exp(a), exp_backward(grad, a)                -> exp(x), exp_backward(grad, x)                -> Función exponencial y su correspondiente función de gradiente.
+    // NDArrayHandle expm1(a), expm1_backward(grad, a)            -> expm1(x), expm1_backward(grad, x)            -> Exponencial menos uno y su correspondiente función de gradiente.
+    
+    //  Conversión numérica y Trigonométricas:
+    // NDArrayHandle degrees(a), degrees_backward(grad, a)        -> degrees(x), degrees_backward(grad, x)        -> Convierte ángulos de radianes a grados y su gradiente.
+    // NDArrayHandle radians(a), radians_backward(grad, a)        -> radians(x), radians_backward(grad, x)        -> Convierte ángulos de grados a radianes y su gradiente.
+    // NDArrayHandle sin(a), sin_backward(grad, a)                -> sin(x), sin_backward(grad, x)                -> Seno trigonométrico elemento a elemento y su gradiente.
+    // NDArrayHandle cos(a), cos_backward(grad, a)                -> cos(x), cos_backward(grad, x)                -> Coseno trigonométrico elemento a elemento y su gradiente.
+    // NDArrayHandle tan(a), tan_backward(grad, tan(a))           -> tan(x), tan_backward(grad, tan(x))           -> Tangente trigonométrica elemento a elemento y su gradiente.
+    // NDArrayHandle arcsin(a), arcsin_backward(grad, a)          -> arcsin(x), arcsin_backward(grad, x)          -> Arco seno elemento a elemento y su gradiente.
+    // NDArrayHandle arccos(a), arccos_backward(grad, a)          -> arccos(x), arccos_backward(grad, x)          -> Arco coseno elemento a elemento y su gradiente.
+    // NDArrayHandle arctan(a), arctan_backward(grad, a)          -> arctan(x), arctan_backward(grad, x)          -> Arco tangente elemento a elemento y su gradiente.
+    
+    // Hiperbólicas:
+    // NDArrayHandle sinh(a), sinh_backward(grad, a)              -> sinh(x), sinh_backward(grad, x)              -> Seno hiperbólico elemento a elemento y su gradiente.
+    // NDArrayHandle cosh(a), cosh_backward(grad, a)              -> cosh(x), cosh_backward(grad, x)              -> Coseno hiperbólico elemento a elemento y su gradiente.
+    // NDArrayHandle tanh(a), tanh_backward(grad, tanh(a))        -> tanh(x), tanh_backward(grad, tanh(x))        -> Tangente hiperbólica elemento a elemento y su gradiente.
+    // NDArrayHandle arcsinh(a), arcsinh_backward(grad, a)        -> arcsinh(x), arcsinh_backward(grad, x)        -> Arco seno hiperbólico elemento a elemento y su gradiente.
+    // NDArrayHandle arccosh(a), arccosh_backward(grad, a)        -> arccosh(x), arccosh_backward(grad, x)        -> Arco coseno hiperbólico elemento a elemento y su gradiente.
+    // NDArrayHandle arctanh(a), arctanh_backward(grad, a)        -> arctanh(x), arctanh_backward(grad, x)        -> Arco tangente hiperbólica elemento a elemento y su gradiente.
+    
+    // Activaciones y especiales:
+    // NDArrayHandle relu(a), relu_backward(grad, a)                        -> relu(x), relu_backward(grad, x)                           -> Función de activación ReLU y su gradiente.
+    // NDArrayHandle sigmoid(a), sigmoid_backward(grad, out)                -> sigmoid(x), sigmoid_backward(grad, y)                     -> Función Sigmoide y su gradiente (usando la salida activada 'y').
+    // NDArrayHandle softsign(a), softsign_backward(grad, a)                -> softsign(x), softsign_backward(grad, x)                   -> Función de activación Softsign y su gradiente.
+    // NDArrayHandle softmax(a, axis), backward_softmax(grad, out)          -> softmax(x, -1), backward_softmax(grad, res)               -> Función Softmax con eje y su gradiente (usando la salida activada 'res').
+    // NDArrayHandle softmin(a, axis), backward_softmin(grad, out)          -> softmin(x, -1), backward_softmin(grad, res)               -> Función Softmin con eje y su gradiente (usando la salida activada 'res').
+    // NDArrayHandle log_softmax(a, axis), backward_log_softmax(grad, out)  -> log_softmax(x, -1), backward_log_softmax(grad, res)       -> Función Log Softmax con eje y su gradiente (usando la salida activada 'res').
+    // NDArrayHandle erf(a), erf_backward(grad, a)                          -> erf(x), erf_backward(grad, x)                             -> Función de error de Gauss elemento a elemento y su gradiente.
+    // NDArrayHandle erfinv(a), erfinv_backward(grad, a)                    -> erfinv(x), erfinv_backward(grad, x)                       -> Función de error inversa elemento a elemento y su gradiente.
+    // NDArrayHandle gamma(a), gamma_backward(grad, a)                      -> gamma(x), gamma_backward(grad, x)                         -> Función Gamma elemento a elemento y su gradiente.
+    // NDArrayHandle gammaln(a), gammaln_backward(grad, a)                  -> gammaln(x), gammaln_backward(grad, x)                     -> Logaritmo natural del valor absoluto de la función Gamma y su gradiente.
+    // NDArrayHandle smooth_l1(a, scalar), backward_smooth_l1(grad, a)      -> smooth_l1(x, 0.5), backward_smooth_l1(grad, x)            -> Pérdida Smooth L1 elemento a elemento con escalar sigma y su gradiente.
+
+    // Operaciones matemáticas especiales element-wise y combinadas con escalares / Funciones de propagación de gradientes (soporte para tensores y escalares a izquierda/derecha):
+    // NDArrayHandle arctan2(a, b)                      -> arctan2(x, 1.0)                                                    -> Arco tangente de dos variables ($y/x$).
+    // NDArrayHandle backward_arctan2(out_grad, a, b)   -> backward_arctan2(grad, x, 1.0), backward_arctan2(grad, 1.0, x)     -> Gradiente de la función arco tangente de dos variables.
+    // NDArrayHandle ldexp(a, b)                        -> ldexp(x, 3)                                                        -> Multiplicación por potencias enteras de dos ($x \cdot 2^n$).
+    // NDArrayHandle backward_ldexp(out_grad, a, b)     -> backward_ldexp(grad, x, 3), backward_ldexp(grad, 2, x)             -> Gradiente del producto por potencias enteras de dos ($x \cdot 2^n$).
+    // NDArrayHandle hypot(a, b)                        -> hypot(x, y)                                                        -> Cálculo de la hipotenusa ($\sqrt{a^2 + b^2}$).
+    // NDArrayHandle backward_hypot(out_grad, a, b)     -> backward_hypot(grad, x, 1.0), backward_hypot(grad, 1.0, x)         -> Gradiente de la función hipotenusa ($\sqrt{a^2 + b^2}$).
+    // NDArrayHandle copysign(a, b)                     -> copysign(x, -1.0)                                                  -> Transferencia de signo elemento a elemento.
+    // NDArrayHandle backward_copysign(out_grad, a, b)  -> backward_copysign(grad, x, -1.0), backward_copysign(grad, 1.0, x)  -> Gradiente de la copia de signo elemento a elemento.
+    // NDArrayHandle broadcast_minimum(a, b)            -> broadcast_minimum(x, y), broadcast_minimum(x, 0.0)                 -> Mínimo elemento a elemento entre tensores o combinación escalar/tensor.
+    // NDArrayHandle backward_minimum(out_grad, a, b)   -> backward_minimum(grad, x, 0.0), backward_minimum(grad, 0.0, x)     -> Gradiente de la función de mínimo elemento a elemento.
+    // NDArrayHandle broadcast_maximum(a, b)            -> broadcast_maximum(x, y), broadcast_maximum(x, 0.0)                 -> Máximo elemento a elemento entre tensores o combinación escalar/tensor.
+    // NDArrayHandle backward_maximum(out_grad, a, b)   -> backward_maximum(grad, x, 0.0), backward_maximum(grad, 0.0, x)     -> Gradiente de la función de máximo elemento a elemento.
+    // NDArrayHandle backward_div(out_grad, a, b)       -> backward_div(grad, x, 2.0), backward_div(grad, 2.0, x)             -> Gradiente de la división elemento a elemento.
+    // NDArrayHandle backward_mod(out_grad, a, b)       -> backward_mod(grad, x, 3.0), backward_mod(grad, 3.0, x)             -> Gradiente de la operación de resto o módulo.
+    // NDArrayHandle backward_power(out_grad, a, b)     -> backward_power(grad, x, 2.0), backward_power(grad, 2.0, x)         -> Gradiente de la potencia elemento a elemento.
+    // NDArrayHandle blockgrad(a)                       -> blockgrad(x)                                                       -> Previene la propagación de gradientes (stop-gradient/detach) sobre el tensor.
+    // NDArrayHandle make_loss(a)                       -> make_loss(x)                                                       -> Modifica la propagación de gradientes para tratar el tensor como salida de pérdida (loss).
+
+// week 03:
+
+    // ==========================================
+    // 3.1. Broadcast de escalares, operaciones aritméticas, lógicas y binarias
+    // ==========================================
+    
+    // --- Operaciones aritméticas estándar ---
+    // NDArrayHandle add(a, b)                  -> add(x, y), add(x, 10), add(10, x)            -> Suma (tensor-tensor, tensor-escalar o escalar-tensor).
+    // NDArrayHandle sub(a, b)                  -> sub(y, x), sub(y, 5.5), sub(100, y)          -> Resta.
+    // NDArrayHandle mul(a, b)                  -> mul(x, y), mul(x, 3), mul(3, x)              -> Multiplicación.
+    // NDArrayHandle div(a, b)                  -> div(y, x), div(y, 2.0), div(100.0, x)        -> División.
+    // NDArrayHandle lcm(a, b)                  -> lcm(x, 3)                                    -> Mínimo común múltiplo.
+    // NDArrayHandle power(a, b)                -> power(x, y), power(x, 2.0), power(3, x)      -> Potencia.
+    // NDArrayHandle mod(a, b)                  -> mod(x, y), mod(x, 3), mod(10, x)             -> Módulo.
+
+    // --- Operaciones elementwise ---
+    // NDArrayHandle elemwise_add(a, b)         -> elemwise_add(x, y), elemwise_add(x, 10), elemwise_add(5, x)       -> Suma elemento a elemento (tensor-tensor o con escalar).
+    // NDArrayHandle elemwise_sub(a, b)         -> elemwise_sub(x, y), elemwise_sub(x, 1), elemwise_sub(10, x)       -> Resta elemento a elemento (tensor-tensor o con escalar).
+    // NDArrayHandle elemwise_mul(a, b)         -> elemwise_mul(x, y), elemwise_mul(x, 2.5), elemwise_mul(2.5, x)    -> Multiplicación elemento a elemento (tensor-tensor o con escalar).
+    // NDArrayHandle elemwise_div(a, b)         -> elemwise_div(x, y), elemwise_div(x, 2), elemwise_div(20, x)       -> División elemento a elemento (tensor-tensor o con escalar).
+    // NDArrayHandle scatter_elemwise_div(a, b) -> scatter_elemwise_div(x, y)                                        -> División dispersa elemento a elemento.
+    
+    // --- Lógica booleana y broadcasting ---
+    // NDArrayHandle not(a)            -> not(x)                                       -> Negación lógica unaria.
+    // NDArrayHandle and(a, b)         -> and(x, 2)                                    -> AND lógico con broadcasting/escalar.
+    // NDArrayHandle or(a, b)          -> or(x, 0)                                     -> OR lógico con broadcasting/escalar.
+    // NDArrayHandle xor(a, b)         -> xor(x, 1)                                    -> XOR lógico con broadcasting/escalar.
+
+    // --- Operaciones bitwise ---
+    // NDArrayHandle bitwise_not(a)    -> bitwise_not(x)                               -> NOT nivel de bits unario.
+    // NDArrayHandle bitwise_and(a, b) -> bitwise_and(x, 5)                            -> AND nivel de bits con escalar.
+    // NDArrayHandle bitwise_or(a, b)  -> bitwise_or(x, 3)                             -> OR nivel de bits con escalar.
+    // NDArrayHandle bitwise_xor(a, b) -> bitwise_xor(x, 3)                            -> XOR nivel de bits con escalar.
+
+    // ==========================================
+    // 3.2. Operaciones relacionales, condicionales y estrictas (Con o sin broadcasting y escalares)
+    // ==========================================
+    
+    // --- Operadores relacionales (Con broadcasting y escalares) ---
+    // NDArrayHandle eq(a, b)             -> eq(x, y), eq(x, 3.0), eq(3.0, x)             -> Igualdad (x == y).
+    // NDArrayHandle ne(a, b)             -> ne(x, y), ne(x, 3.0)                         -> Desigualdad (x != y).
+    // NDArrayHandle gt(a, b)             -> gt(x, y), gt(x, 2.5), gt(2.5, x)             -> Mayor que (x > y).
+    // NDArrayHandle ge(a, b)             -> ge(x, y), ge(x, 3.0), ge(3.0, x)             -> Mayor o igual que (x >= y).
+    // NDArrayHandle lt(a, b)             -> lt(x, y), lt(x, 2.5), lt(2.5, x)             -> Menor que (x < y).
+    // NDArrayHandle le(a, b)             -> le(x, y), le(x, 3.0)                         -> Menor o igual que (x <= y).
+
+    // --- Operador condicional ---
+    // NDArrayHandle where(cond, x, y)            -> where(cond, x, y), where(cond, x, 99.0)   -> Selecciona elementos según 'cond' (tensor-tensor o tensor-escalar).
+    // NDArrayHandle nonzero(a)                   -> nonzero(t_input)                          -> Retorna los índices de todos los elementos que son diferentes de cero.
+    // NDArrayHandle argwhere(a)                  -> argwhere(t_input)                         -> Devuelve los índices de los elementos no nulos organizados como matriz (N, ndim).
+
+    // ==========================================
+    // 3.3. Funciones de indexado y broadcast
+    // ==========================================
+    
+    // NDArrayHandle indices(dimensions);                                                -> indices(shape(2, 3))                                 -> Generación de un tensor de índices con tipo de datos y contexto por defecto.
+    // NDArrayHandle indices(dimensions, dtype);                                         -> indices(shape(2, 3), "float32")                      -> Generación de un tensor de índices especificando el tipo de datos.
+    // NDArrayHandle indices(dimensions, dtype, ctx);                                    -> indices(shape(2, 3), "float32", cpu(1))              -> Generación de un tensor de índices especificando tipo de datos y contexto de hardware.
+
+    // NDArrayHandle index_array(data);                                                  -> index_array(x)                                       -> Generación de un arreglo de coordenadas de índices para todas las dimensiones del tensor base.
+    // NDArrayHandle index_array(data, axes);                                            -> index_array(x, axis(0))                              -> Generación de un arreglo de índices restringido al eje 0 del tensor de entrada.
+    
+    // NDArrayHandle ravel_multi_index(data, shape);                                     -> ravel_multi_index(idx_data, shape(2, 2))             -> Conversión de coordenadas de índices multidimensionales a índices planos.
+
+    // NDArrayHandle unravel_index(data, shape);                                         -> unravel_index(flat_data, shape(2, 2))                -> Conversión de índices planos a coordenadas multidimensionales basadas en una forma dada.
+
+    // NDArrayHandle broadcast_to(array, shape);                                         -> broadcast_to(x_1x3, shape(2, 3))                     -> Ampliación de las dimensiones de un arreglo a una forma específica (fuera de lugar).
+    // NDArrayHandle broadcast_to_(data, shape);                                         -> broadcast_to_(x_1x3, shape(2, 3))                    -> Ampliación de las dimensiones de un arreglo a una forma específica (en su lugar).
+
+    // NDArrayHandle broadcast_axis(data);                                               -> broadcast_axis(x_1x3)                                -> Ampliación predeterminada de ejes sin parámetros opcionales.
+    // NDArrayHandle broadcast_axis(data, axis);                                         -> broadcast_axis(x_1x3, axis(0))                       -> Ampliación de un eje específico manteniendo su dimensión original.
+    // NDArrayHandle broadcast_axis(data, axis, size);                                   -> broadcast_axis(x_1x1, axis(0, 1), shape(2, 3))       -> Ampliación de un eje específico especificando el tamaño de destino.
+
+    // NDArrayHandle broadcast_like(lhs, rhs);                                           -> broadcast_like(x_1x3, x)                             -> Ampliación de un arreglo para que coincida con la forma de otro de referencia.
+    // NDArrayHandle broadcast_like(lhs, rhs, lhs_axes);                                 -> broadcast_like(x_1x3, x, axis(0))                    -> Ampliación indicando los ejes específicos del operando izquierdo a escalar.
+    // NDArrayHandle broadcast_like(lhs, rhs, lhs_axes, rhs_axes);                       -> broadcast_like(x_1x3, x, axis(0), axis(0))           -> Ampliación especificando tanto los ejes de origen como los de referencia de destino.
+    
+    // NDArrayHandle tile(data, reps);                                                   -> tile(x, reps(2, 1))                                  -> Repetición de un bloque de datos completo según las repeticiones indicadas por eje.
+
+    // NDArrayHandle repeat(data, repeats);                                              -> repeat(x, 2)                                         -> Repetición de los elementos individuales de un arreglo un número de veces de forma aplanada.
+    // NDArrayHandle repeat(data, repeats, axis_scalar);                                 -> repeat(x, 2, 0)                                      -> Repetición de los elementos de un arreglo un número de veces a lo largo de un eje específico.
+    
+    // NDArrayHandle moveaxis(a, source, destination);                                   -> moveaxis(x_3d, axis(0), axis(1))                     -> Reubicación de ejes o dimensiones específicas de un tensor desde su origen hasta su destino.
+    
+    // NDArrayHandle swapaxis(data);                                                     -> swapaxis(x)                                          -> Intercambio predeterminado de los dos primeros ejes (0 y 1).
+    // NDArrayHandle swapaxis(data, dim1);                                               -> swapaxis(x, 0)                                       -> Intercambio de un eje especificado con el eje secundario por defecto (1).
+    // NDArrayHandle swapaxis(data, dim1, dim2);                                         -> swapaxis(x, 0, 1)                                    -> Intercambio explícito de dos dimensiones o ejes específicos entre sí.
+
+    // ==========================================
+    // 3.4. Operaciones de reducción de tensores
+    // ==========================================
+
+    // ==========================================
+    // i. Operaciociones básicas con tipo de dato e inicializador
+    // [sum, mean, prod]
+    // ==========================================
+    // NDArrayHandle sum(data);                                      -> sum(x)                                                -> Reducción total de todos los elementos.
+    // NDArrayHandle sum(data, axis);                                -> sum(x, axis(1))                                       -> Reducción manteniendo dimensiones en el eje indicado.
+    // NDArrayHandle sum(data, axis, dtype);                         -> sum(x, axis(1), "float64")                            -> Todo lo anterior con tipo de datos específico.
+    // NDArrayHandle sum(data, axis, dtype, keepdims);               -> sum(x, axis(1), "float64", 0)                         -> Todo lo anterior manteniendo las dimensiones.
+    // NDArrayHandle sum(data, axis, dtype, keepdims, initial);      -> sum(x, axis(1), "float64", 0, 100.5)                  -> Todo lo anterior con valor inicial numérico específico.
+    // NDArrayHandle sum(data, axis, dtype, keepdims, initial, out); -> sum(x, axis(1), "float64", 0, 100.5, out_0D)          -> Todo lo anterior guardando el resultado en un búfer de salida.
+
+    // ==========================================
+    // ii. Estadísticas
+    // [std, var]
+    // ==========================================
+    // NDArrayHandle std(data);                                                    -> std(x)                                               -> Cálculo estadístico global de todos los elementos.
+    // NDArrayHandle std(data, axis);                                              -> std(x, axis(0))                                      -> Cálculo estadístico sobre un eje específico.
+    // NDArrayHandle std(data, axis, dtype);                                       -> std(x, axis(1), "float64")                           -> Cálculo estadístico con tipo de datos específico.
+    // NDArrayHandle std(data, axis, dtype, keepdims);                             -> std(x, axis(1), "float64", 1)                        -> Cálculo estadístico manteniendo las dimensiones.
+    // NDArrayHandle std(data, axis, dtype, keepdims, ddof);                       -> std(x, axis(1), "float64", 0, 1)                     -> Cálculo estadístico con grados de libertad (ddof).
+    // NDArrayHandle std(data, axis, dtype, keepdims, ddof, out);                  -> std(x, axis(1), "float64", 0, 0, out_0D)             -> Cálculo estadístico guardando el resultado en un búfer de salida.
+    
+    // ==========================================
+    // iii. Extremos sin dtype (con inicializador)
+    // [min, max]
+    // ==========================================
+    // NDArrayHandle min(data);                                                    -> min(x)                                               -> Operación de valor extremo global.
+    // NDArrayHandle min(data, axis);                                              -> min(x, axis(0))                                      -> Operación sobre un eje determinado.
+    // NDArrayHandle min(data, axis, keepdims);                                    -> min(x, axis(1), 1)                                   -> Operación manteniendo dimensiones.
+    // NDArrayHandle min(data, axis, keepdims, initial);                           -> min(x, axis(0), 0, 100.5)                            -> Operación con valor inicial positivo.
+    // NDArrayHandle min(data, axis, keepdims, initial, out);                      -> min(x, axis(1), 0, 0, out_0D)                        -> Operación guardando el resultado en un búfer de salida.
+    
+    // ==========================================
+    // iv. Manejo de NaN para sumas y productos con exclusión de ejes, sin dtype ni inicializador
+    // [nansum, nanprod]
+    // ==========================================
+    // NDArrayHandle nansum(data);                                                 -> nansum(x)                                            -> Reducción con manejo de NaN total de todos los elementos.
+    // NDArrayHandle nansum(data, axis);                                           -> nansum(x, axis(0))                                   -> Reducción con manejo de NaN sobre un eje específico.
+    // NDArrayHandle nansum(data, axis, keepdims);                                 -> nansum(x, axis(1), 1)                                -> Reducción con manejo de NaN manteniendo dimensiones.
+    // NDArrayHandle nansum(data, axis, keepdims, exclude);                        -> nansum(x, axis(0), 0, 1)                             -> Reducción con manejo de NaN indicando exclusión de ejes.
+    // NDArrayHandle nansum(data, axis, keepdims, exclude, out);                   -> nansum(x, axis(1), 0, 0, out_1D)                     -> Reducción con manejo de NaN guardando el resultado en un búfer de salida.
+    
+    // ==========================================
+    // v. Transformaciones acumulativas
+    // [cumsum]
+    // ==========================================
+    // NDArrayHandle cumsum(data);                                                 -> cumsum(x)                                            -> Suma acumulada global aplanada del tensor.
+    // NDArrayHandle cumsum(data, axis_scalar);                                    -> cumsum(x, 0)                                         -> Suma acumulada a lo largo del eje especificado.
+    // NDArrayHandle cumsum(data, axis_scalar, dtype);                             -> cumsum(x, 1, "float64")                              -> Suma acumulada a lo largo de un eje promoviendo el tipo de dato.
+    // NDArrayHandle cumsum(data, axis_scalar, dtype, out);                        -> cumsum(x, 1, "float64", out_buf)                     -> Guarda el resultado en un búfer preasignado.
+
+    // ==========================================
+    // vi. Búsqueda y reducciones lógicas sin dtype ni inicializador
+    // [argmin, argmax, all, any]
+    // ==========================================
+    // NDArrayHandle argmin(data);                                                 -> argmin(x)                                            -> Búsqueda de índice del valor extremo global.
+    // NDArrayHandle argmin(data, axis_scalar);                                    -> argmin(x, 0)                                         -> Búsqueda de índice a lo largo del eje especificado.
+    // NDArrayHandle argmin(data, axis_scalar, keepdims);                          -> argmin(x, 1, 1)                                      -> Búsqueda de índice manteniendo las dimensiones.
+    // NDArrayHandle argmin(data, axis_scalar, keepdims, out);                     -> argmin(x, 0, 0, out_0D)                              -> Búsqueda de índice guardando el resultado en un búfer de salida.
+    
+    // ==========================================
+    // Funciones de enmascaramiento
+    // ==========================================
+    // NDArrayHandle boolean_mask(data, mask);                                           -> boolean_mask(data, mask_1d)                                       -> Extrae elementos usando una máscara booleana sobre el eje predeterminado (axis=0).
+    // NDArrayHandle boolean_mask(data, mask, axis);                                     -> boolean_mask(data, mask_1d, 0)                                    -> Extrae elementos aplicando una máscara booleana a lo largo de un eje específico.
+
+    // NDArrayHandle boolean_mask_assign_scalar(data, mask, value, start_axis);          -> boolean_mask_assign_scalar(data_copy, mask_2d, 99.0, 0)           -> Reemplaza por un valor escalar las posiciones donde la máscara booleana es verdadera.
+    // NDArrayHandle boolean_mask_assign_tensor(data, mask, value, start_axis);          -> boolean_mask_assign_tensor(data_copy, mask_2d, mask_vals, 0)      -> Asigna valores desde un tensor fuente en las posiciones donde la máscara booleana es verdadera.
+
+    // ==========================================
+    // 3.5. Funciones de utilidades numéricas
+    // ==========================================
+    
+    // Redondeo numérico:
+    // NDArrayHandle ceil(a)                       -> ceil(x)                       -> Redondeo hacia arriba (techo) elemento a elemento.
+    // NDArrayHandle floor(a)                      -> floor(x)                      -> Redondeo hacia abajo (piso) elemento a elemento.
+    // NDArrayHandle trunc(a)                      -> trunc(x)                      -> Truncamiento de la parte decimal elemento a elemento.
+    // NDArrayHandle round(a)                      -> round(x)                      -> Redondeo al entero más cercano elemento a elemento.
+    // NDArrayHandle rint(a)                       -> rint(x)                       -> Redondeo al entero más cercano (al par más cercano en empates).
+    // NDArrayHandle fix(a)                        -> fix(x)                        -> Redondeo hacia cero elemento a elemento.
+    // NDArrayHandle negative(a)                   -> negative(x)                   -> Negación numérica elemento a elemento ($-x$).
+
+    // Verificaciones de estado numérico:
+    // NDArrayHandle isfinite(data)                -> isfinite(x)                   -> Verifica si los elementos son finitos (no NaN ni Inf).
+    // NDArrayHandle isinf(data)                   -> isinf(x)                      -> Verifica si los elementos son infinitos ($\pm\infty$).
+    // NDArrayHandle isnan(data)                   -> isnan(x)                      -> Verifica si los elementos son valores No Numéricos (NaN).
+    // NDArrayHandle isneginf(data)                -> isneginf(x)                   -> Verifica si los elementos son infinito negativo ($-\infty$).
+    // NDArrayHandle isposinf(data)                -> isposinf(x)                   -> Verifica si los elementos son infinito positivo ($+\infty$).
+
+    // NDArrayHandle around(a);                                                          -> around(x)                                            -> Redondeo de elementos al entero más cercano (0 decimales por defecto).
+    // NDArrayHandle around(a, decimals);                                                -> around(x, 2)                                         -> Redondeo de elementos especificando la cantidad de decimales de precisión.
+
+    // NDArrayHandle all_finite(data);                                                   -> all_finite(x)                                        -> Verificación de finitud de todos los elementos con valor inicial por defecto.
+    // NDArrayHandle all_finite(data, init_output);                                      -> all_finite(x, 1)                                     -> Verificación de finitud especificando el estado inicial del acumulador booleano.
+
+    // NDArrayHandle nan_to_num(data);                                                   -> nan_to_num(x_nan)                                    -> Reemplazo de NaN e infinitos por valores numéricos predeterminados.
+    // NDArrayHandle nan_to_num(data, copy);                                             -> nan_to_num(x_nan, 1)                                 -> Reemplazo indicando si se crea una copia del arreglo original.
+    // NDArrayHandle nan_to_num(data, copy, nan);                                        -> nan_to_num(x_nan, 1, 999.0)                          -> Reemplazo especificando el valor numérico sustituto para NaN.
+    // NDArrayHandle nan_to_num(data, copy, nan, posinf);                                -> nan_to_num(x_nan, 1, 0.0, 8888.0)                    -> Reemplazo especificando valores numéricos para NaN e infinito positivo.
+    // NDArrayHandle nan_to_num(data, copy, nan, posinf, neginf);                        -> nan_to_num(x_nan, 1, 0.0, 8888.0, -8888.0)           -> Reemplazo completo especificando sustitutos para NaN, infinito positivo e infinito negativo.
+
+    // NDArrayHandle allclose(a, b);                                                     -> allclose(a, b)                                       -> Comparación con tolerancia relativa (1e-05) y absoluta (1e-08) predeterminadas.
+    // NDArrayHandle allclose(a, b, rtol);                                               -> allclose(a, b, 1e-3)                                 -> Comparación de igualdad aproximada especificando la tolerancia relativa (rtol).
+    // NDArrayHandle allclose(a, b, rtol, atol);                                         -> allclose(a, b, 1e-3, 1e-4)                           -> Comparación especificando tanto la tolerancia relativa (rtol) como la absoluta (atol).
+    // NDArrayHandle allclose(a, b, rtol, atol, equal_nan);                              -> allclose(a, b, 1e-5, 1e-8, 1)                        -> Comparación especificando tolerancias e indicando si los valores NaN se consideran iguales.
+    
+    // ==========================================
+    // 3.6. Funciones de transformación y saneamiento numérico
+    // ==========================================
+    
+    // NDArrayHandle roll(a, shift);                                                     -> roll(x, 2)                                           -> Desplazamiento circular de elementos sobre el arreglo aplanado.
+    // NDArrayHandle roll(a, shift, axis);                                               -> roll(x, 2, 0)                                        -> Desplazamiento circular indicando uno o varios ejes específicos.
+    
+    // NDArrayHandle flip(m, axis);                                                      -> flip(x, axis(0))                                     -> Inversión del orden de los elementos a lo largo de los ejes indicados.
+    
+    // NDArrayHandle rot90(m);                                                           -> rot90(x)                                             -> Rotación de 90 grados con parámetros por defecto (k=1, axes(0, 1)).
+    // NDArrayHandle rot90(m, k);                                                        -> rot90(x, 2)                                          -> Rotación especificando el número de giros de 90 grados.
+    // NDArrayHandle rot90(m, k, axes);                                                  -> rot90(x, 1, axis(0, 1))                              -> Rotación especificando el número de giros y el plano de ejes.
+    
+    // NDArrayHandle diff(a);                                                            -> diff(x)                                              -> Diferencia finita a lo largo del último eje con n=1.
+    // NDArrayHandle diff(a, n);                                                         -> diff(x, 1)                                           -> Diferencia n-ésima a lo largo del último eje.
+    // NDArrayHandle diff(a, n, axis);                                                   -> diff(x, 1, 0)                                        -> Diferencia n-ésima calculada a lo largo de un eje específico.
+
+    // NDArrayHandle clip(a, a_min, a_max);                                              -> clip(x, 2.0, 5.0)                                    -> Acotamiento de elementos dentro del intervalo especificado [a_min, a_max].
+
+    // NDArrayHandle hard_sigmoid(data);                                                 -> hard_sigmoid(x)                                      -> Sigmoide rápida lineal por partes con valores por defecto (alpha=0.2, beta=0.5).
+    // NDArrayHandle hard_sigmoid(data, alpha);                                          -> hard_sigmoid(x, 0.2)                                 -> Sigmoide rápida especificando el factor de escala/pendiente (alpha).
+    // NDArrayHandle hard_sigmoid(data, alpha, beta);                                    -> hard_sigmoid(x, 0.2, 0.5)                            -> Sigmoide rápida especificando escala (alpha) y desplazamiento (beta).
+
+    // ==========================================
+    // 3.7. Funciones de activación normalizadas avanzados
+    // ==========================================
+    
+    // ==========================================
+    // i.[softmax]
+    // ==========================================
+    // NDArrayHandle softmax(data);                                                            -> softmax(x)                                           -> Operación softmax global sobre todos los elementos.
+    // NDArrayHandle softmax(data, axis_escalar);                                              -> softmax(x, 1)                                        -> Operación softmax sobre un eje específico.
+    // NDArrayHandle softmax(data, axis_escalar, dtype);                                       -> softmax(x, 1, "float32")                             -> Operación softmax con tipo de datos específico.
+    // NDArrayHandle softmax(data, axis_escalar, dtype, temperature);                          -> softmax(x, 1, "float32", 1.0)                        -> Operación softmax con control de temperatura.
+    // NDArrayHandle softmax(data, axis_escalar, dtype, temperature, use_length);              -> softmax(x, 1, "float32", 1.0, 0)                     -> Operación softmax indicando uso de longitudes.
+    // NDArrayHandle softmax(data, axis_escalar, dtype, temperature, use_length, length);      -> softmax(x, 1, "float32", 1.0, 1, len_dummy)          -> Operación softmax especificando tensor de longitudes.
+    // NDArrayHandle softmax(data, axis_escalar, dtype, temperature, use_length, length, out); -> softmax(x, 1, "float32", 1.0, 0, NULL, out_custom)   -> Operación softmax guardando el resultado en un búfer de salida.
+
+    // ==========================================
+    // ii. [softmin, log_softmax]
+    // ==========================================
+    // NDArrayHandle softmin(data);                                                      -> softmin(x)                                           -> Operación softmin global sobre todos los elementos.
+    // NDArrayHandle softmin(data, axis_escalar);                                        -> softmin(x, 1)                                        -> Operación softmin sobre un eje específico.
+    // NDArrayHandle softmin(data, axis_escalar, dtype);                                 -> softmin(x, 1, "float32")                             -> Operación softmin con tipo de datos específico.
+    // NDArrayHandle softmin(data, axis_escalar, dtype, temperature);                    -> softmin(x, 1, "float32", 1.0)                        -> Operación softmin con control de temperatura.
+    // NDArrayHandle softmin(data, axis_escalar, dtype, temperature, out);               -> softmin(x, 1, "float32", 1.0, out_custom)            -> Operación softmin guardando el resultado en un búfer de salida.
+
+// week 04:
+
+    // ==========================================
+    // 4.1. Operaciones de álgebra lineal: transpuesta, producto matricial/tensorial avanzado y resolución de sistemas lineales y tensoriales
+    // ==========================================
+    
+    // NDArrayHandle transpose
+    // NDArrayHandle transpose(data)                  -> transpose(x)                      -> Invierte el orden de todos los ejes por defecto
+    // NDArrayHandle transpose(data, axes)            -> transpose(x, axis(1, 0, 2))       -> Permuta los ejes según el orden indicado en 'axes'
+    // NDArrayHandle transpose(data, axes)            -> transpose(x, None)                -> Comportamiento por defecto equivalente a transpose(x)
+
+    // NDArrayHandle dot(a, b, ...);                                                       -> dot(a, b)                                    -> Producto punto para vectores, matrices y tensores.
+
+    // NDArrayHandle backward_dot(out_grad, a, b);                                         -> backward_dot(out_grad, a, b)                 -> Gradiente de la operación dot calculando grad_a = out_grad * b^T.
+
+    // NDArrayHandle matmul(a, b);                                                         -> matmul(a, b)                                 -> Producto matricial (incluyendo soporte para lotes / batched).
+
+    // NDArrayHandle batch_dot(a, b, ...);                                                 -> batch_dot(t1, t2)                            -> Producto matricial por lotes (batched matrix multiplication) para tensores 3D/N-D.
+
+    // NDArrayHandle linalg_gemm(a, b, c, ...);                                            -> linalg_gemm(a, b, c, 0, 0, 0.5, 2.0)         -> Operación GEMM completa con sesgo: alpha * op(A) * op(B) + beta * C.
+    // NDArrayHandle linalg_gemm2(a, b, ...);                                              -> linalg_gemm2(a, b, 0, 1, 0.5)                -> Operación GEMM simplificada sin sesgo: alpha * op(A) * op(B).
+
+    // NDArrayHandle tensordot_int_axes(a, b);                                             -> tensordot_int_axes(a, b, 0)                  -> Producto tensorial sin contracción de ejes (axes=0).
+    // NDArrayHandle tensordot_int_axes(a, b, axis_escalar);                               -> tensordot_int_axes(a, b, 1)                  -> Producto tensorial contrayendo un número entero de ejes.
+
+    // NDArrayHandle tensordot(a, b, a_axes_summed, b_axes_summed);                        -> tensordot(a, b, shape(1), shape(0))          -> Producto tensorial avanzado especificando tuplas de ejes a contraer para cada tensor.
+
+    // NDArrayHandle solve(a, b);                                                          -> solve(sq_A, vec_B)                           -> Resuelve el sistema de ecuaciones lineales A * x = B para matrices cuadradas e invertibles.
+
+    // NDArrayHandle tensorsolve(a, b, ...);                                               -> tensorsolve(t_A, t_B)                        -> Resuelve la ecuación tensorial a * x = b contrayendo ejes por defecto.
+    // NDArrayHandle tensorsolve(a, b, a_axes);                                            -> tensorsolve(t_A, t_B, axis(0, 1))            -> Resuelve la ecuación tensorial a * x = b especificando reordenamiento y contracción de ejes explícitos.
+
+    // ==========================================
+    // 4.2. Operadores Diagonales y de Triangulación
+    // ==========================================
+
+    // NDArrayHandle diagonal(a);                                                         -> diagonal(x2d)                                        -> Extrae la diagonal principal de una matriz 2D.
+    // NDArrayHandle diagonal(a, offset);                                                 -> diagonal(x2d, 1)                                     -> Extrae la diagonal desplazada por un offset determinado.
+    // NDArrayHandle diagonal(a, offset, axis1, axis2);                                   -> diagonal(x3d, 0, 0, 1)                               -> Extrae la diagonal especificando los ejes 2D dentro de un tensor N-dimensional.
+
+    // NDArrayHandle diag(a);                                                             -> diag(x2d)                                            -> Extrae la diagonal de una matriz 2D o crea una matriz 2D si la entrada es 1D.
+    // NDArrayHandle diag(a, k);                                                          -> diag(x2d, 1)                                         -> Extrae o construye una matriz diagonal desplazada por el índice k.
+
+    // NDArrayHandle diagflat(a);                                                         -> diagflat(x1d)                                        -> Aplana la entrada y crea una matriz 2D con el vector en la diagonal principal.
+    // NDArrayHandle diagflat(a, k);                                                      -> diagflat(x1d, 1)                                     -> Aplana la entrada y ubica los elementos en la diagonal desplazada k.
+
+    // NDArrayHandle tril(a);                                                             -> tril(x2d)                                            -> Retiene la parte triangular inferior de la matriz y anula el resto.
+    // NDArrayHandle tril(a, k);                                                          -> tril(x2d, -1)                                        -> Retiene la parte triangular inferior a partir de la diagonal desplazada k.
+
+    // NDArrayHandle triu(a);                                                             -> triu(x2d)                                            -> Retiene la parte triangular superior de la matriz y anula el resto.
+    // NDArrayHandle triu(a, k);                                                          -> triu(x2d, 1)                                         -> Retiene la parte triangular superior a partir de la diagonal desplazada k.
+
+    // NDArrayHandle tril_indices(row, col);                                              -> tril_indices(3, 3)                                   -> Genera los índices de la matriz triangular inferior para una forma dada.
+    // NDArrayHandle tril_indices(row, col, k);                                           -> tril_indices(3, 3, 1)                                -> Genera los índices triangulares inferiores a partir de la diagonal k.
+
+    // NDArrayHandle triu_indices(row, col);                                              -> triu_indices(3, 3)                                   -> Genera los índices de la matriz triangular superior para una forma dada.
+    // NDArrayHandle triu_indices(row, col, k);                                           -> triu_indices(3, 3, -1)                               -> Genera los índices triangulares superiores a partir de la diagonal k.
+
+    // NDArrayHandle trace(a);                                                            -> trace(x2d)                                           -> Suma los elementos a lo largo de la diagonal principal.
+    // NDArrayHandle trace(a, offset);                                                    -> trace(x2d, 1)                                        -> Suma los elementos de la diagonal desplazada por un offset.
+    // NDArrayHandle trace(a, offset, axis1, axis2);                                      -> trace(x3d, 0, 0, 1)                                  -> Suma los elementos diagonales sobre los ejes bidimensionales especificados.
+
+    // NDArrayHandle extractdiag(a);                                                      -> extractdiag(x2d_float)                               -> Extrae los elementos de la diagonal principal como vector 1D.
+    // NDArrayHandle extractdiag(a, offset);                                              -> extractdiag(x2d_float, 1)                            -> Extrae los elementos de la diagonal desplazada como vector 1D.
+
+    // NDArrayHandle makediag(a);                                                         -> makediag(x1d_float)                                  -> Construye una matriz 2D diagonal a partir de un vector 1D.
+    // NDArrayHandle makediag(a, offset);                                                 -> makediag(x1d_float, -1)                              -> Construye una matriz 2D diagonal ubicando el vector en el offset k.
+
+    // NDArrayHandle extracttrian(a);                                                     -> extracttrian(x2d_float)                              -> Extrae la región triangular inferior predeterminada como arreglo 1D.
+    // NDArrayHandle extracttrian(a, offset);                                             -> extracttrian(x2d_float, 0)                           -> Extrae la región triangular desde la diagonal indicada por offset.
+    // NDArrayHandle extracttrian(a, offset, lower);                                      -> extracttrian(x2d_float, 0, 0)                        -> Extrae la región triangular indicando si es inferior (lower=1) o superior (lower=0).
+
+    // NDArrayHandle maketrian(a);                                                        -> maketrian(x1d_float)                                 -> Construye una matriz triangular inferior a partir de los elementos de entrada.
+    // NDArrayHandle maketrian(a, offset);                                                -> maketrian(x1d_float, 0)                              -> Construye una matriz triangular posicionando los elementos desde el offset.
+    // NDArrayHandle maketrian(a, offset, lower);                                         -> maketrian(x1d_float, 0, 0)                           -> Construye una matriz triangular definiendo offset y tipo (1=inferior, 0=superior).
+
+    // NDArrayHandle gather_nd(data, indices);                                           -> gather_nd(data, indices)                                          -> Reagrupa y extrae elementos utilizando un tensor multidimensional de índices.
+
+    // NDArrayHandle backward_gather_nd(data, indices, shape);                           -> backward_gather_nd(vals_to_scatter, indices, shape(2, 3))         -> Calcula el gradiente disperso o distribuye valores en un tensor con la forma dada.
+
+    // NDArrayHandle scatter_nd(data, indices, shape);                                   -> scatter_nd(vals_to_scatter, indices, shape(2, 3))                 -> Ubica y dispersa valores dentro de un nuevo tensor de ceros de la forma especificada.
+
+    // NDArrayHandle scatter_set_nd(lhs, rhs, indices, shape);                           -> scatter_set_nd(data_copy, vals_to_scatter, indices, shape(2, 3))  -> Asigna y reemplaza valores en posiciones indexadas dentro del tensor de destino.
+
+
+    // =========================================================================
+    // 4.3. MÓDULO DE ÁLGEBRA LINEAL AVANZADA
+    // =========================================================================
+    // Operaciones matriciales complejas, descomposición y propiedades estructurales:
+    // NDArrayHandle cholesky(a)                  -> cholesky(x)                        -> Factorización de Cholesky sobre matrices simétricas definidas positivas.
+    // NDArrayHandle eigvals(a)                   -> eigvals(x)                         -> Calcula únicamente los valores propios (autovalores) de una matriz cuadrada.
+    // NDArrayHandle norm(a)                      -> norm(x)                            -> Norma $L_2$ euclidiana general obtenida aplanando el tensor completo.
+    // NDArrayHandle norm_(a)                     -> norm_(x)                           -> Variante interna/C-API de norma con diferente comportamiento de reducción dimensional.
+    // NDArrayHandle linalg_norm(a)               -> linalg_norm(x)                     -> Norma matricial inducida estándar (sigue la especificación de numpy.linalg.norm).
+    // NDArrayHandle linalg_det(a)                -> linalg_det(x)                      -> Calcula el determinante de matrices cuadradas o por lotes (batches).
+    // NDArrayHandle linalg_gelqf(a)              -> linalg_gelqf(x)                    -> Computa la factorización LQ de una matriz.
+    // NDArrayHandle linalg_inverse(a)            -> linalg_inverse(x)                  -> Calcula la matriz inversa de una matriz cuadrada invertible.
+    // NDArrayHandle linalg_potrf(a)              -> linalg_potrf(x)                    -> Computa la descomposición de Cholesky en formato de operador interno linalg.
+    // NDArrayHandle linalg_potri(a)              -> linalg_potri(x)                    -> Computa la inversa de una matriz a partir de su descomposición de Cholesky.
+    // NDArrayHandle linalg_slogdet(a)            -> linalg_slogdet(x)                  -> Calcula el signo y el logaritmo del determinante de forma numéricamente estable.
+    // NDArrayHandle linalg_sumlogdiag(a)         -> linalg_sumlogdiag(x)               -> Calcula la suma del logaritmo de los elementos diagonales de una matriz triangular.
+    // NDArrayHandle linalg_syevd(a)              -> linalg_syevd(x)                    -> Computa los autovalores y autovectores de una matriz simétrica mediante algoritmo divide y vencerás.
+
+    // Multiplicación de matriz simétrica (syrk)
+    // NDArrayHandle linalg_syrk(A);                                                      -> linalg_syrk(A)                                                       -> Producto A * A^T sin transposición ni escalado (alpha=1.0 por defecto).
+    // NDArrayHandle linalg_syrk(A, transpose);                                           -> linalg_syrk(A, 1)                                                    -> Producto A^T * A especificando el indicador de transposición.
+    // NDArrayHandle linalg_syrk(A, transpose, alpha);                                    -> linalg_syrk(A, 1, 2.0)                                               -> Producto A^T * A multiplicando el resultado por el escalar alpha.
+    
+    // Multiplicación triangular de matrices (trmm)
+    // NDArrayHandle linalg_trmm(A, B);                                                   -> linalg_trmm(A, B)                                                    -> Multiplicación por la izquierda, triangular inferior, sin transponer (alpha=1.0 por defecto).
+    // NDArrayHandle linalg_trmm(A, B, transpose);                                        -> linalg_trmm(A, B, 1)                                                 -> Multiplicación transponiendo la matriz triangular A (A^T * B).
+    // NDArrayHandle linalg_trmm(A, B, transpose, rightside);                             -> linalg_trmm(A, B, 1, 0)                                              -> Especificación explícita del lado de multiplicación (rightside=0 para izquierda).
+    // NDArrayHandle linalg_trmm(A, B, transpose, rightside, lower);                      -> linalg_trmm(A, B, 0, 0, 1)                                           -> Multiplicación indicando explícitamente si se usa la parte inferior (lower=1).
+    // NDArrayHandle linalg_trmm(A, B, transpose, rightside, lower, alpha);               -> linalg_trmm(A, B, 0, 0, 1, 2.0)                                      -> Multiplicación triangular con escalado personalizado por alpha.
+    
+    // Resolución de sistemas triangulares (trsm)
+    // NDArrayHandle linalg_trsm(A, B);                                                   -> linalg_trsm(A, B)                                                    -> Resuelve A * X = B con A triangular inferior sin transponer (alpha=1.0 por defecto).
+    // NDArrayHandle linalg_trsm(A, B, transpose);                                        -> linalg_trsm(A, B, 1)                                                 -> Resuelve A^T * X = B transponiendo la matriz triangular A.
+    // NDArrayHandle linalg_trsm(A, B, transpose, rightside);                             -> linalg_trsm(A, B, 1, 0)                                              -> Resolución especificando el lado del sistema (rightside=0 para A * X = B).
+    // NDArrayHandle linalg_trsm(A, B, transpose, rightside, lower);                      -> linalg_trsm(A, B, 0, 0, 1)                                           -> Resolución especificando el uso de la parte triangular inferior (lower=1).
+    // NDArrayHandle linalg_trsm(A, B, transpose, rightside, lower, alpha);               -> linalg_trsm(A, B, 0, 0, 1, 2.0)                                      -> Resolución del sistema triangular escalando el lado derecho por alpha.
+    
+    // Autovalores para matrices hermitianas/simétricas (eigvalsh)
+    // NDArrayHandle eigvalsh(A);                                                         -> eigvalsh(A)                                                          -> Cálculo de autovalores usando el triángulo inferior ("L") por defecto.
+    // NDArrayHandle eigvalsh(A, uplo);                                                   -> eigvalsh(A, "U")                                                     -> Cálculo de autovalores especificando la parte triangular ("U" o "L").
+    
+    // Pseudoinversa de Moore-Penrose con NDArray (pinv)
+    // NDArrayHandle pinv(A, rcond);                                                      -> pinv(A, rcond_arr)                                                   -> Pseudoinversa con valor de corte rcond en NDArray (hermitian=0 por defecto).
+    // NDArrayHandle pinv(A, rcond, hermitian);                                           -> pinv(A, rcond_arr, 1)                                                -> Pseudoinversa especificando si la matriz es hermitiana o simétrica.
+    
+    // Pseudoinversa de Moore-Penrose con escalar (pinv_scalar_rcond)
+    // NDArrayHandle pinv_scalar_rcond(A);                                                -> pinv_scalar_rcond(A)                                                 -> Pseudoinversa con rcond escalar predeterminado (1e-15).
+    // NDArrayHandle pinv_scalar_rcond(A, rcond);                                         -> pinv_scalar_rcond(A, 1e-5)                                           -> Pseudoinversa especificando un rcond escalar personalizado.
+    // NDArrayHandle pinv_scalar_rcond(A, rcond, hermitian);                              -> pinv_scalar_rcond(A, 1e-5, 1)                                        -> Pseudoinversa especificando rcond escalar y flag hermitian.
+    
+    // Inversa de tensor (tensorinv)
+    
+    // NDArrayHandle tensorinv(A);                                                        -> tensorinv(A_tensor)                                                  -> Inversa de tensor con índice de estructuración predeterminado (ind=2).
+    // NDArrayHandle tensorinv(A, ind);                                                   -> tensorinv(A_tensor, 2)                                               -> Inversa de tensor especificando explícitamente el parámetro ind.
+
+    // ==========================================
+    // 4.4. Funciones de ordenamiento y selección
+    // ==========================================
+
+    // NDArrayHandle topk(data);                                                    -> topk(x)                                                   -> Selecciona el índice del mayor elemento a lo largo del eje por defecto (-1).
+    // NDArrayHandle topk(data, axis_scalar);                                       -> topk(x, 1)                                                -> Selecciona el índice del mayor elemento a lo largo del eje especificado.
+    // NDArrayHandle topk(data, axis_scalar, k);                                    -> topk(x, 1, 2)                                             -> Selecciona los k mayores elementos a lo largo del eje.
+    // NDArrayHandle topk(data, axis_scalar, k, ret_typ);                           -> topk(x, 1, 2, "value")                                    -> Retorna el tipo de resultado especificado ("value", "indices", etc.).
+    // NDArrayHandle topk(data, axis_scalar, k, ret_typ, is_ascend);                -> topk(x, 1, 2, "value", 1)                                 -> Controla la dirección del ordenamiento (ascendente o descendente).
+    // NDArrayHandle topk(data, axis_scalar, k, ret_typ, is_ascend, dtype);         -> topk(x, 1, 2, "value", 1, "float32")                      -> Especifica el tipo de dato de salida para los índices.
+
+    // NDArrayHandle sort(data);                                                    -> sort(x)                                                   -> Ordena de forma aplanada globalmente de forma ascendente.
+    // NDArrayHandle sort(data, axis_scalar);                                       -> sort(x, 1)                                                -> Ordena los elementos a lo largo del eje especificado.
+    // NDArrayHandle sort(data, axis_scalar, is_ascend);                            -> sort(x, 1, 0)                                             -> Ordena a lo largo del eje controlando si es ascendente o descendente.
+
+    // NDArrayHandle argsort(data);                                                 -> argsort(x)                                                -> Retorna los índices que ordenarían el tensor aplanado.
+    // NDArrayHandle argsort(data, axis_scalar);                                    -> argsort(x, 1)                                             -> Retorna los índices que ordenarían el tensor a lo largo del eje.
+    // NDArrayHandle argsort(data, axis_scalar, is_ascend);                         -> argsort(x, 1, 1)                                          -> Retorna los índices controlando la dirección del ordenamiento.
+    // NDArrayHandle argsort(data, axis_scalar, is_ascend, dtype);                  -> argsort(x, 1, 1, "int64")                                 -> Retorna los índices especificando el tipo de dato de salida.
+
+    // NDArrayHandle pick(data, index);                                             -> pick(x, indices)                                          -> Selecciona elementos del tensor usando índices aplanados o por defecto.
+    // NDArrayHandle pick(data, index, axis_scalar);                                -> pick(x, indices, 1)                                       -> Selecciona elementos a lo largo del eje especificado.
+    // NDArrayHandle pick(data, index, axis_scalar, keepdims);                      -> pick(x, indices, 1, 1)                                    -> Selecciona elementos preservando la dimensión reducida.
+    // NDArrayHandle pick(data, index, axis_scalar, keepdims, mode);                -> pick(x, indices, 1, 1, "clip")                            -> Selecciona elementos controlando el comportamiento fuera de límites.
+    
+    // ==========================================
+    // 4.5. Funciones de codificación, histogramas, conteo e diferencia
+    // ==========================================
+
+    // NDArrayHandle one_hot(indices, depth);                                           -> one_hot(idx, 3)                                      -> Codificación one-hot básica especificando la profundidad de la dimensión.
+    // NDArrayHandle one_hot(indices, depth, on_value);                                 -> one_hot(idx, 3, 1.0)                                 -> Codificación especificando el valor asignado a la posición activa.
+    // NDArrayHandle one_hot(indices, depth, on_value, off_value);                      -> one_hot(idx, 3, 1.0, 0.0)                            -> Codificación especificando los valores para posiciones activas e inactivas.
+    // NDArrayHandle one_hot(indices, depth, on_value, off_value, dtype);               -> one_hot(idx, 3, 2.0, -1.0, "float32")               -> Codificación one-hot completa con valores personalizados y tipo de dato.
+    
+    // NDArrayHandle histogram(data, bins);                                                                                     -> histogram(x, bins_arr)                                                     -> Cálculo de histograma con bordes de contenedores explícitos.
+    // NDArrayHandle histogram(data, bins, bin_cnt, range);                                                                     -> histogram(x, None, 5, range(1.0, 5.0))                                    -> Cálculo de histograma especificando número de contenedores y rango dinámico.
+    
+    // NDArrayHandle bincount(data);                                                                                            -> bincount(x_int)                                                            -> Conteo de frecuencias de enteros no negativos.
+    // NDArrayHandle bincount(data, weights);                                                                                   -> bincount(x_int, weights)                                                   -> Conteo ponderado acumulando los pesos de cada valor.
+    // NDArrayHandle bincount(data, weights, minlength);                                                                        -> bincount(x_int, None, 10)                                                  -> Conteo estableciendo la longitud mínima del arreglo de salida.
+    // NDArrayHandle bincount(data, weights, minlength, has_weights);                                                           -> bincount(x_int, weights, 10, 1)                                            -> Conteo especificando de forma explícita el indicador de presencia de pesos.
+
+    // NDArrayHandle ediff1d(input1);                                                                                           -> ediff1d(x)                                                                 -> Diferencias consecutivas entre los elementos contiguos del arreglo.
+    // NDArrayHandle ediff1d(input1, input2);                                                                                   -> ediff1d(x, pad_end)                                                        -> Diferencias consecutivas agregando un arreglo al final del resultado.
+    // NDArrayHandle ediff1d(input1, input2, input3);                                                                           -> ediff1d(x, pad_end, pad_begin)                                             -> Diferencias consecutivas agregando arreglos tanto al inicio como al final.
+    // NDArrayHandle ediff1d(input1, input2, input3, to_begin_arr_given);                                                       -> ediff1d(x, None, pad_begin, 1)                                             -> Diferencias indicando explícitamente la validez del arreglo de inicio.
+    // NDArrayHandle ediff1d(input1, input2, input3, to_begin_arr_given, to_end_arr_given);                                     -> ediff1d(x, pad_end, pad_begin, 1, 1)                                       -> Diferencias especificando los flags de validez para ambos arreglos de relleno.
+    // NDArrayHandle ediff1d(input1, input2, input3, to_begin_arr_given, to_end_arr_given, to_begin_scalar);                    -> ediff1d(x, None, None, 0, 0, -1.0)                                         -> Diferencias agregando un valor escalar al inicio de la secuencia de salida.
+    // NDArrayHandle ediff1d(input1, input2, input3, to_begin_arr_given, to_end_arr_given, to_begin_scalar, to_end_scalar);     -> ediff1d(x, None, None, 0, 0, -1.0, 99.0)                                   -> Diferencias agregando valores escalares en los extremos inicial y final.
+
+    // ==========================================
+    // 4.6. Funciones de estatísticas
+    // ==========================================
+    
+    // NDArrayHandle average(a);                                                                                                -> average(x)                                                                 -> Promedio general del arreglo completo.
+    // NDArrayHandle average(a, weights);                                                                                       -> average(x, weights)                                                        -> Promedio ponderado global según los pesos proporcionados.
+    // NDArrayHandle average(a, weights, axis);                                                                                 -> average(x, None, axis(0))                                                  -> Promedio a lo largo de un eje específico sin ponderación.
+    // NDArrayHandle average(a, weights, axis, returned);                                                                       -> average(x, weights, axis(0), 1)                                            -> Promedio a lo largo de un eje devolviendo la suma de los pesos utilizados.
+    // NDArrayHandle average(a, weights, axis, returned, weighted);                                                             -> average(x, None, None, 0, 0)                                               -> Configuración completa especificando manualmente el flag de ponderación implícita.
+    
+    // NDArrayHandle percentile(a, q);                                                                                          -> percentile(x, q_arr)                                                       -> Cálculo de percentiles para un conjunto de valores en un arreglo.
+    // NDArrayHandle percentile(a, q, axis);                                                                                    -> percentile(x, q_arr, axis(0))                                              -> Cálculo de percentiles a lo largo de un eje específico.
+    // NDArrayHandle percentile(a, q, axis, interpolation);                                                                     -> percentile(x, q_arr, axis(0), "linear")                                    -> Cálculo especificando el método de interpolación de percentiles.
+    // NDArrayHandle percentile(a, q, axis, interpolation, keepdims);                                                           -> percentile(x, q_arr, axis(0), "higher", 1)                                 -> Cálculo conservando la cantidad de dimensiones originales en la salida.
+    // NDArrayHandle percentile(a, q, axis, interpolation, keepdims, q_scalar);                                                 -> percentile(x, None, None, "midpoint", 0, 50.0)                             -> Cálculo de percentil pasando el valor porcentual como un escalar directo.
+    
+    // NDArrayHandle covarianza
+    // NDArrayHandle cov(x);                                                            -> cov(x)                                                    -> Estimación de la covarianza asumiendo filas como variables y columnas como observaciones.
+    // NDArrayHandle cov(x, y);                                                         -> cov(x, y)                                                 -> Matriz de covarianza combinada entre dos conjuntos de variables o vectores.
+    // NDArrayHandle cov(x, y, rowvar);                                                 -> cov(x_T, None, 0)                                         -> Control de la orientación de los datos (1: filas son variables, 0: columnas son variables).
+    // NDArrayHandle cov(x, y, rowvar, bias);                                           -> cov(x, y, 1, 1)                                           -> Normalización de la covarianza (0: insesgada dividida por N-1, 1: sesgada dividida por N).
+    // NDArrayHandle cov(x, y, rowvar, bias, ddof);                                     -> cov(x, None, 1, 0, 1)                                     -> Especificación directa de los grados de libertad delta (prevalece sobre bias si no es NULL).
+    // NDArrayHandle cov(x, y, rowvar, bias, ddof, fweights);                           -> cov(x, y, 1, 0, 0, fweights)                              -> Ponderación de datos basada en vectores de pesos de frecuencia de las observaciones.
+    // NDArrayHandle cov(x, y, rowvar, bias, ddof, fweights, aweights);                 -> cov(x, None, 1, 0, None, fweights, aweights)              -> Ponderación mediante pesos analíticos o de fiabilidad para la precisión de cada observación.
+    // NDArrayHandle cov(x, y, rowvar, bias, ddof, fweights, aweights, dtype);          -> cov(x, y, 1, 0, None, fweights, aweights, "float64")      -> Fundición/conversión explícita del tipo de dato del resultado devuelto.
+    
+    // Coeficiente de correlación de Pearson
+    // NDArrayHandle corrcoef(x);                                   -> corrcoef(x)                                  -> Matriz de correlación de Pearson para variables organizadas por filas en x.
+    // NDArrayHandle corrcoef(x);                                   -> corrcoef(x1d)                                -> Correlación de una única variable unidimensional (devuelve escalar 1.0).
+
+    // NDArrayHandle corrcoef(x, y);                                -> corrcoef(x, None)                            -> Correlación de x consigo misma omitiendo el segundo conjunto de datos.
+    // NDArrayHandle corrcoef(x, y);                                -> corrcoef(x, y)                               -> Matriz combinada de correlación entre las variables de x y el vector o matriz y.
+    // NDArrayHandle corrcoef(x, y);                                -> corrcoef(x1d, y)                             -> Matriz de correlación 2x2 entre dos vectores unidimensionales.
+
+    // NDArrayHandle corrcoef(x, y, rowvar);                        -> corrcoef(x, None, 1)                         -> Cálculo con orientación a filas (predeterminado: cada fila representa una variable).
+    // NDArrayHandle corrcoef(x, y, rowvar);                        -> corrcoef(x_T, None, 0)                       -> Cálculo con orientación a columnas (cada columna de x_T representa una variable).
+    // NDArrayHandle corrcoef(x, y, rowvar);                        -> corrcoef(x_T, y, 0)                          -> Correlación orientada a columnas combinando la matriz transpuesta x_T con y.
+
+    // NDArrayHandle corrcoef(x, y, rowvar, dtype);                 -> corrcoef(x, None, 1, "float32")              -> Correlación especificando precisión simple (float32) en la salida.
+    // NDArrayHandle corrcoef(x, y, rowvar, dtype);                 -> corrcoef(x_gpu, None, 1, "float16")          -> Correlación especificando media precisión (float16) ejecutada en GPU.
+    // NDArrayHandle corrcoef(x, y, rowvar, dtype);                 -> corrcoef(x, y, 1, "float64")                 -> Correlación completa entre dos conjuntos especificando precisión doble (float64).
+    
+    // NDArrayHandle pdf(X, mean, cov);                             -> pdf(X, mean, cov)                            -> Evaluación de la densidad de probabilidad gaussiana multivariada en la matriz X.
+
+    // NDArrayHandle rvs(mean, cov, size);                          -> rvs(mean, cov, 5)                            -> Generación de 'size' muestras aleatorias de una distribución gaussiana multivariada.
+
+    // ==========================================
+    // 4.7. Operadores de generación aleatoria y muestreo estocástico
+    // ==========================================
+    
+    // int seed(id)                                                            -> seed(42);                                             -> Establece la semilla globalmente para todos los dispositivos ("all")
+    // int seed(id, devices)                                                   -> seed(42, "all");                                      -> Equivalente explícito a "all"
+    // int seed(id, devices)                                                   -> seed(42, "cpu");                                      -> Semilla específica para la CPU
+    // int seed(id, devices)                                                   -> seed(42, gpu(0));                                     -> Semilla específica para una GPU en particular
+
+    // NDArrayHandle shuffle(data);                                                      -> shuffle(x2d)                                         -> Mezcla aleatoria de todos los elementos sin especificar el eje.
+    // NDArrayHandle shuffle(data, axis_scalar);                                         -> shuffle(x2d, 0)                                      -> Mezcla aleatoria de elementos a lo largo de un eje específico (admite índices negativos).
+    
+    // NDArrayHandle choice(a);                                                          -> choice(5)                                            -> Muestra aleatoria simple desde un rango entero (0 a a-1).
+    // NDArrayHandle choice(a, size);                                                    -> choice(5, shape(3))                                  -> Muestra aleatoria definiendo la forma (size) de salida.
+    // NDArrayHandle choice(a, size, replace);                                           -> choice(5, shape(3), 1)                               -> Muestra aleatoria especificando si se permite reemplazo de elementos.
+    // NDArrayHandle choice(a, size, replace, p);                                        -> choice(5, shape(3), 1, None)                         -> Muestra aleatoria pasando probabilidades explícitas por elemento.
+    // NDArrayHandle choice(a, size, replace, p, ctx);                                   -> choice(5, shape(3), 1, None, cpu(1))                 -> Muestra aleatoria especificando el contexto de cómputo de salida.
+    // NDArrayHandle choice(a, size, replace, p, ctx, weighted);                         -> choice(5, shape(3), 0, probs, cpu(1), 1)             -> Muestra aleatoria completa con arreglo de probabilidades y ponderación activa.
+
+    // NDArrayHandle sample_multinomial(data);                                           -> sample_multinomial(probs)                            -> Muestreo multinomial básico desde una distribución de probabilidades.
+    // NDArrayHandle sample_multinomial(data, shape);                                    -> sample_multinomial(probs, shape(2))                  -> Muestreo multinomial especificando la dimensión de la muestra generada.
+    // NDArrayHandle sample_multinomial(data, shape, get_prob);                          -> sample_multinomial(probs, shape(2), 0)               -> Muestreo multinomial indicando si se retoma la log-probabilidad.
+    // NDArrayHandle sample_multinomial(data, shape, get_prob, dtype);                   -> sample_multinomial(probs, shape(2), 1, "float32")    -> Muestreo multinomial completo especificando el tipo de dato de salida.
+
+    // NDArrayHandle multinomial(a, n);                                                  -> multinomial(probs, 10)                               -> Experimento multinomial especificando el número de ensayos (n).
+    // NDArrayHandle multinomial(a, n, pvals);                                           -> multinomial(probs, 10, None)                         -> Experimento multinomial con lista de probabilidades alternativas.
+    // NDArrayHandle multinomial(a, n, pvals, size);                                     -> multinomial(probs, 10, None, shape(2))               -> Experimento multinomial completo definiendo la forma (size) resultante.
+    
+    // NDArrayHandle uniform(low, high);                                                  -> uniform(0.0, 1.0)                                                -> Generación uniforme con valores escalares.
+    // NDArrayHandle uniform(low, high, size);                                            -> uniform(-1.0, 1.0, shape(2, 3))                                  -> Generación uniforme especificando el tamaño de salida.
+    // NDArrayHandle uniform(low, high, size, dtype);                                     -> uniform(0.0, 5.0, shape(2, 3), "float32")                        -> Generación uniforme especificando el tipo de dato.
+    // NDArrayHandle uniform(low, high, size, dtype, ctx);                                -> uniform(0.0, 1.0, shape(2, 3), "float64", cpu(1))                -> Generación uniforme especificando tipo de dato y contexto.
+
+    // NDArrayHandle uniform_n(low, high);                                                -> uniform_n(0.0, 1.0)                                              -> Variante de generación uniforme con rango escalar.
+    // NDArrayHandle uniform_n(low, high, size);                                          -> uniform_n(-1.0, 1.0, shape(2, 3))                                -> Variante uniforme especificando el tamaño de salida.
+    // NDArrayHandle uniform_n(low, high, size, dtype);                                   -> uniform_n(0.0, 5.0, shape(2, 3), "float32")                      -> Variante uniforme especificando el tipo de dato.
+    // NDArrayHandle uniform_n(low, high, size, dtype, ctx);                              -> uniform_n(0.0, 1.0, shape(2, 3), "float64", cpu(1))              -> Variante uniforme especificando tipo de dato y contexto.
+
+    // NDArrayHandle normal(loc, scale);                                                  -> normal(0.0, 1.0)                                                 -> Generación normal con media y escala escalares.
+    // NDArrayHandle normal(loc, scale, size);                                            -> normal(0.0, 1.0, shape(2, 3))                                    -> Generación normal especificando el tamaño de salida.
+    // NDArrayHandle normal(loc, scale, size, dtype);                                     -> normal(0.0, 1.0, shape(2, 3), "float32")                         -> Generación normal especificando el tipo de dato.
+    // NDArrayHandle normal(loc, scale, size, dtype, ctx);                                -> normal(0.0, 1.0, shape(2, 3), "float64", cpu(1))                 -> Generación normal especificando tipo de dato y contexto.
+
+    // NDArrayHandle normal_n(loc, scale);                                                -> normal_n(0.0, 1.0)                                               -> Variante de generación normal con parámetros escalares.
+    // NDArrayHandle normal_n(loc, scale, size);                                          -> normal_n(0.0, 1.0, shape(2, 3))                                  -> Variante normal especificando el tamaño de salida.
+    // NDArrayHandle normal_n(loc, scale, size, dtype);                                   -> normal_n(0.0, 1.0, shape(2, 3), "float32")                       -> Variante normal especificando el tipo de dato.
+    // NDArrayHandle normal_n(loc, scale, size, dtype, ctx);                              -> normal_n(0.0, 1.0, shape(2, 3), "float64", cpu(1))               -> Variante normal especificando tipo de dato y contexto.
+
+    // NDArrayHandle bernoulli(prob, logit, is_logit);                                    -> bernoulli(0.5, 0.0, 0)                                           -> Muestreo de Bernoulli indicando uso de probabilidad o logit via bandera.
+    // NDArrayHandle bernoulli(prob, logit, is_logit, size);                              -> bernoulli(0.5, 0.0, 0, shape(2, 3))                              -> Muestreo de Bernoulli especificando la forma del tensor resultante.
+    // NDArrayHandle bernoulli(prob, logit, is_logit, size, dtype);                       -> bernoulli(0.5, 0.0, 0, shape(2, 3), "float32")                   -> Muestreo de Bernoulli especificando el tipo de dato de salida.
+    // NDArrayHandle bernoulli(prob, logit, is_logit, size, dtype, ctx);                  -> bernoulli(0.5, 0.0, 0, shape(2, 3), "float32", cpu(1))           -> Muestreo de Bernoulli especificando tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle random_uniform(low, high, shape);                                    -> random_uniform(0.0, 1.0, shape(2, 3))                            -> Generación uniforme con rango de flotantes y forma de salida.
+    // NDArrayHandle random_uniform(low, high, shape, dtype);                             -> random_uniform(-1.0, 1.0, shape(2, 3), "float32")                -> Generación uniforme especificando el tipo de dato.
+    // NDArrayHandle random_uniform(low, high, shape, dtype, ctx);                        -> random_uniform(0.0, 10.0, shape(2, 3), "float64", cpu(1))        -> Generación uniforme especificando el tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle random_normal(loc, scale, shape);                                    -> random_normal(0.0, 1.0, shape(2, 3))                             -> Generación normal con media, desviación estándar y forma de salida.
+    // NDArrayHandle random_normal(loc, scale, shape, dtype);                             -> random_normal(1.0, 0.5, shape(2, 3), "float32")                  -> Generación normal especificando el tipo de dato.
+    // NDArrayHandle random_normal(loc, scale, shape, dtype, ctx);                        -> random_normal(0.0, 1.0, shape(2, 3), "float64", cpu(1))          -> Generación normal especificando el tipo de dato y contexto de ejecución.
+
+    // NDArrayHandle random_uniform_like(data);                                           -> random_uniform_like(x)                                           -> Generación uniforme infiriendo forma y tipo a partir de un tensor de referencia.
+    // NDArrayHandle random_uniform_like(low, high, data);                                -> random_uniform_like(-2.0, 2.0, x)                                -> Generación uniforme especificando límites e infiriendo forma del tensor de referencia.
+
+    // NDArrayHandle random_normal_like(data);                                            -> random_normal_like(x)                                            -> Generación normal infiriendo forma y tipo a partir de un tensor de referencia.
+    // NDArrayHandle random_normal_like(loc, scale, data);                                -> random_normal_like(5.0, 1.5, x)                                  -> Generación normal especificando media y desviación e infiriendo forma del tensor.
+
+    // NDArrayHandle random_randint(low, high, shape);                                    -> random_randint(1, 100, shape(2, 3))                              -> Generación de enteros aleatorios en rango [low, high) con forma dada.
+    // NDArrayHandle random_randint(low, high, shape, dtype);                             -> random_randint(0, 10, shape(2, 3), "int32")                      -> Generación de enteros aleatorios especificando el tipo de dato entero.
+    // NDArrayHandle random_randint(low, high, shape, dtype, ctx);                        -> random_randint(0, 50, shape(2, 3), "int64", cpu(1))              -> Generación de enteros aleatorios especificando tipo de dato y contexto.
+
+    // NDArrayHandle sample_uniform(low, high);                                           -> sample_uniform(low_arr, high_arr)                                -> Muestreo uniforme con tensores multidimensionales de límites.
+    // NDArrayHandle sample_uniform(low, shape, dtype, high);                             -> sample_uniform(low_arr, shape(2, 3), "float32", high_arr)        -> Muestreo uniforme desde tensores especificando forma y tipo de dato.
+
+    // NDArrayHandle sample_normal(mu, sigma);                                            -> sample_normal(mu_arr, sigma_arr)                                 -> Muestreo normal con tensores multidimensionales de media y desviación.
+    // NDArrayHandle sample_normal(mu, shape, dtype, sigma);                              -> sample_normal(mu_arr, shape(2, 3), "float32", sigma_arr)         -> Muestreo normal desde tensores especificando forma y tipo de dato.
+

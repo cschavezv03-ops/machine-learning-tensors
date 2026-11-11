@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "Tensors.h"
-#include "book/sml.h"
+#include "../book/sml.h"
 
 NDArrayHandle euclidian_distance(NDArrayHandle train, NDArrayHandle test) {
     NDArrayHandle diff = expand_dims(train, 1);
@@ -29,7 +29,7 @@ NDArrayHandle predict(NDArrayHandle neighbors) {
 }
 
 int main(void) {
-    CSV_Container iris = load_csv("data/iris.csv", ",", 1);
+    CSV_Container iris = load_csv("../data/iris.csv", ",", 1);
     if (!iris.dataset) return 1;
 
     NDArrayHandle train = NULL, test = NULL;
